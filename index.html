@@ -1,0 +1,3902 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Склад</title>
+<!-- тёмный, как заставка: системный экран запуска рисуется этим цветом,
+     и светлый фон бросался в глаза перед появлением заставки -->
+<meta name="theme-color" content="#05070F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Склад">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+/* ============================================================
+   TOKENS
+   ============================================================ */
+:root{
+  /* фоновый градиент (мягкий, персиково-лавандовый) */
+  --bg-a:#FFFFFF; --bg-b:#F3F7FE; --bg-c:#E4EDFC;
+
+  /* стеклянные поверхности */
+  --surface:rgba(255,255,255,.70); --surface-2:rgba(255,255,255,.50); --surface-3:rgba(255,255,255,.92);
+  --border:rgba(36,42,61,.10); --border-soft:rgba(36,42,61,.07);
+
+  --text:#242A3D; --text-secondary:#868FA8; --text-tertiary:#AEB5C9;
+
+  --accent:#4A7DFF; --accent-strong:#3566E6; --accent-ink:#FFFFFF;
+  --accent-soft:rgba(74,125,255,.12); --accent-border:rgba(74,125,255,.35);
+
+  --success:#2BBE85; --success-soft:rgba(43,190,133,.14); --success-border:rgba(43,190,133,.32);
+  --danger:#FF6B78; --danger-soft:rgba(255,107,120,.14); --danger-border:rgba(255,107,120,.32);
+  --info:#8C7EF2; --info-soft:rgba(140,126,242,.14); --info-border:rgba(140,126,242,.32);
+
+  /* палитра категорий для кольцевой диаграммы */
+  --cat-1:#4A7DFF; --cat-2:#FF6B78; --cat-3:#8C7EF2; --cat-4:#FFA35C; --cat-5:#2FBFAE; --cat-6:#FFC94D;
+
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-7:32px; --sp-8:40px;
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-full:999px;
+
+  --shadow-card:0 1px 2px rgba(50,60,100,.05), 0 16px 34px -20px rgba(50,60,100,.35);
+  --shadow-pop:0 24px 54px -14px rgba(50,60,100,.4);
+
+  --font-display:'Space Grotesk',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --dur:.16s;
+}
+
+*{box-sizing:border-box;}
+/* Браузер на телефоне обновляет страницу, если потянуть её вниз от края.
+   Внутри приложения это только мешает: тянут, чтобы закрыть шторку, а
+   вместо этого перезагружается всё. */
+html{-webkit-text-size-adjust:100%;overscroll-behavior-y:contain;}
+body{
+  margin:0;color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.5;-webkit-tap-highlight-color:transparent;
+  min-height:100vh;overscroll-behavior-y:contain;
+  background:
+    radial-gradient(circle at 18% 4%, #EAF1FF 0%, transparent 46%),
+    radial-gradient(circle at 85% 88%, #DCE9FF 0%, transparent 55%),
+    linear-gradient(165deg, #FFFFFF 0%, #F3F7FE 45%, #E4EDFC 100%);
+  background-attachment:fixed;
+}
+::selection{background:var(--accent);color:var(--accent-ink);}
+h1,h2,h3{font-family:var(--font-display);margin:0;}
+button{font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+input,select,textarea{font-family:inherit;}
+a{color:var(--accent);}
+svg{display:block;}
+
+button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible{
+  outline:2px solid var(--accent); outline-offset:2px; border-radius:var(--r-sm);
+}
+button:disabled{opacity:.38; cursor:not-allowed;}
+@media (hover:hover){
+  button:not(:disabled):hover{ filter:brightness(1.04); }
+}
+button:not(:disabled):active{ transform:translateY(1px); }
+
+.t-display{font-family:var(--font-display);font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1.1;}
+.t-h1{font-family:var(--font-display);font-size:17px;font-weight:600;letter-spacing:-.005em;}
+.t-eyebrow{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-secondary);}
+.t-body{font-size:14px;}
+.t-small{font-size:12.5px;color:var(--text-secondary);}
+.t-caption{font-size:11px;color:var(--text-tertiary);}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-weight:600;}
+
+#app{max-width:720px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding-bottom:calc(92px + env(safe-area-inset-bottom));}
+
+.sticky-chrome{position:sticky;top:0;z-index:6;background:rgba(255,255,255,.58);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-bottom:1px solid rgba(255,255,255,.5);}
+header.top{padding:calc(var(--sp-5) + env(safe-area-inset-top)) var(--sp-4) var(--sp-3);background:transparent;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);}
+/* Меню действий вкладки — живёт в заголовке раздела, а не в шапке профиля:
+   действия относятся к разделу. */
+.page-head-row{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.page-head-row h2{min-width:0;}
+.head-actions{position:relative;flex-shrink:0;}
+.menu-sheet{
+  display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:20;
+  min-width:236px;max-width:calc(100vw - 32px);
+  background:rgba(255,255,255,.98);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-pop);
+  padding:6px;overflow:hidden;
+}
+.menu-sheet.show{display:block;animation:fade .14s ease;}
+.menu-sheet button{
+  display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:none;background:none;
+  border-radius:var(--r-sm);color:var(--text);font-size:14px;text-align:left;
+}
+.menu-sheet button .icon{width:17px;height:17px;color:var(--text-secondary);flex-shrink:0;}
+.menu-sheet button:disabled{opacity:.4;}
+.menu-sheet button.danger{color:var(--danger);}
+.menu-sheet button.danger .icon{color:var(--danger);}
+.menu-sheet .menu-sep{height:1px;background:var(--border-soft);margin:5px 4px;}
+.menu-sheet .menu-note{padding:6px 12px 8px;color:var(--text-tertiary);font-size:11.5px;}
+
+/* Ввод количеств перед выгрузкой накладной */
+.order-group{margin-top:var(--sp-3);}
+.order-group:first-child{margin-top:0;}
+.order-group h4{margin:0 0 6px;font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--text-secondary);}
+.order-row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--border-soft);}
+.order-row:last-child{border-bottom:none;}
+.order-row .osku{flex:1;min-width:0;font-family:var(--font-mono);font-weight:600;font-size:13.5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.order-row .oprice{flex:0 0 auto;font-family:var(--font-mono);font-size:12.5px;color:var(--text-tertiary);}
+.order-row input{flex:0 0 84px;text-align:center;font-family:var(--font-mono);font-weight:700;font-size:15px;padding:9px 6px;}
+.order-total{margin-top:var(--sp-3);padding:10px 12px;border-radius:var(--r-sm);background:var(--surface-2);
+  border:1px solid var(--border-soft);font-size:13px;color:var(--text-secondary);text-align:center;}
+.order-total b{color:var(--text);font-family:var(--font-mono);}
+@media (hover:hover){ .menu-sheet button:not(:disabled):hover{background:var(--accent-soft);} }
+
+header.top .brand{display:flex;align-items:center;gap:10px;min-width:0;}
+header.top .mark{width:34px;height:34px;border-radius:var(--r-md);background:var(--accent);border:none;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;box-shadow:0 6px 16px -6px rgba(74,125,255,.6);overflow:hidden;}
+header.top .name{min-width:0;}
+header.top h1{font-size:15px;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
+/* кнопок в шапке стало больше — не даём подписи распирать её на три строки */
+header.top .sub{color:var(--text-tertiary);font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.status-pill{flex-shrink:0;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.65);border:1px solid var(--border);border-radius:var(--r-full);padding:6px 10px;font-size:11px;color:var(--text-secondary);white-space:nowrap;}
+.status-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--success);flex-shrink:0;}
+
+main{flex:1;padding:0 var(--sp-4) var(--sp-6);}
+section{display:none;}
+section.active{display:block;animation:fade .18s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:none;}}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.001s !important; transition:none !important;} }
+
+.page-head{margin:var(--sp-2) 0 var(--sp-4);}
+.page-head h2{font-size:19px;font-weight:600;color:var(--text);}
+.page-head p{margin:2px 0 0;color:var(--text-secondary);font-size:12.5px;}
+
+.card{background:var(--surface);border:1px solid rgba(255,255,255,.6);border-radius:var(--r-lg);padding:var(--sp-4);margin-bottom:var(--sp-3);box-shadow:var(--shadow-card);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3);gap:var(--sp-2);}
+.card-head .t-eyebrow{margin:0;}
+
+.icon{width:18px;height:18px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.icon-sm{width:14px;height:14px;}
+.icon-lg{width:28px;height:28px;}
+
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:rgba(255,255,255,.4);border:1px solid var(--border-soft);border-radius:var(--r-md);padding:4px;margin-bottom:var(--sp-3);}
+.seg button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:9px 2px;border-radius:calc(var(--r-md) - 4px);border:1px solid transparent;background:transparent;color:var(--text-tertiary);font-weight:600;font-size:11.5px;transition:background var(--dur),color var(--dur),border-color var(--dur);min-width:0;}
+.seg button .icon{width:17px;height:17px;}
+.seg button.on.prihod{background:var(--success-soft);border-color:var(--success-border);color:var(--success);}
+.seg button.on.rashod{background:var(--danger-soft);border-color:var(--danger-border);color:var(--danger);}
+.seg button.on.inv{background:var(--info-soft);border-color:var(--info-border);color:var(--info);}
+
+.tabs{display:flex;gap:6px;margin-bottom:var(--sp-3);}
+.tabs button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:var(--r-sm);border:1px solid var(--border-soft);background:rgba(255,255,255,.45);color:var(--text-secondary);font-size:12.5px;font-weight:600;}
+.tabs button.active{background:rgba(255,255,255,.95);color:var(--text);border-color:var(--border);}
+.tabs button.active .icon{color:var(--accent);}
+
+.scanbox{position:relative;overflow:hidden;border-radius:var(--r-md);border:1.5px dashed var(--accent-border);background:rgba(255,255,255,.5);padding:var(--sp-6) var(--sp-4);text-align:center;}
+.scanbox input{width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-mono);font-size:20px;text-align:center;font-weight:600;letter-spacing:.02em;}
+.scanbox input::placeholder{color:var(--text-tertiary);font-family:var(--font-body);font-weight:500;font-size:14px;}
+.scanbox .hint{color:var(--text-tertiary);font-size:11px;margin-top:8px;}
+.scanbox .beamline{position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:sweep 2.4s ease-in-out infinite;opacity:.65;}
+@keyframes sweep{0%{top:0;}50%{top:100%;}100%{top:0;}}
+
+.cam-stage{position:relative;border-radius:var(--r-md);overflow:hidden;border:1.5px solid var(--accent-border);background:#000;}
+.cam-stage video{width:100%;display:block;aspect-ratio:4/3;object-fit:cover;background:#000;}
+.cam-stage .reticle{position:absolute;inset:16%;border:2px solid var(--accent);border-radius:var(--r-sm);box-shadow:0 0 0 999px rgba(20,20,30,.35);pointer-events:none;overflow:hidden;}
+.cam-stage .reticle::before{content:'';position:absolute;left:0;right:0;height:2px;background:var(--accent);animation:sweep2 1.8s ease-in-out infinite;}
+@keyframes sweep2{0%{top:0;}100%{top:100%;}}
+.cam-caption{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:8px;color:var(--text-tertiary);font-size:11px;}
+
+/* camera quantity confirm */
+.cam-confirm{margin-top:var(--sp-3);background:rgba(255,255,255,.6);border:1px solid var(--accent-border);border-radius:var(--r-md);padding:var(--sp-3);}
+.cam-confirm .ccname{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cam-confirm .ccstock{font-size:11.5px;color:var(--text-tertiary);margin-top:2px;}
+.qty-stepper{display:flex;align-items:center;justify-content:center;gap:10px;margin:var(--sp-3) 0;}
+.qty-stepper button{width:40px;height:40px;border-radius:var(--r-sm);background:rgba(255,255,255,.8);border:1px solid var(--border);color:var(--text);font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.qty-stepper input{width:72px;text-align:center;font-family:var(--font-mono);font-size:18px;font-weight:700;padding:8px 4px;}
+
+/* header settings icon */
+.icon-btn-lg{width:38px;height:38px;border-radius:var(--r-full);background:rgba(255,255,255,.7);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);flex-shrink:0;}
+.icon-btn-lg .icon{width:19px;height:19px;}
+
+/* finance / receipt-style summary */
+.receipt-row{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;font-size:13px;}
+.receipt-row .rl{color:var(--text-secondary);}
+.receipt-row .rv{font-family:var(--font-mono);font-weight:600;color:var(--text);}
+.receipt-row.total{border-top:1px dashed var(--border);margin-top:6px;padding-top:12px;}
+.receipt-row.total .rl{font-weight:700;color:var(--text);font-size:14px;}
+.receipt-row.total .rv{font-size:19px;color:var(--accent-strong);}
+.period-seg{display:flex;gap:6px;margin-bottom:var(--sp-3);flex-wrap:wrap;}
+.period-seg button{flex:1;min-width:64px;padding:8px 6px;border-radius:var(--r-sm);border:1px solid var(--border-soft);background:rgba(255,255,255,.45);color:var(--text-secondary);font-size:12px;font-weight:600;}
+.period-seg button.active{background:rgba(255,255,255,.95);color:var(--accent-strong);border-color:var(--accent-border);}
+.period-seg .period-cal{flex:0 0 auto;min-width:44px;display:flex;align-items:center;justify-content:center;}
+.period-seg .period-cal .icon{width:17px;height:17px;}
+/* когда фильтр по датам включён, кнопка календаря подсвечена */
+.icon-btn-lg.active-filter{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-strong);}
+
+/* Календарь выбора периода: одно окно вместо двух полей и кнопки рядом */
+.cal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:var(--sp-3);}
+.cal-head button{width:38px;height:38px;border-radius:var(--r-sm);border:1px solid var(--border);background:rgba(255,255,255,.7);
+  color:var(--text);font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;}
+.cal-title{font-family:var(--font-display);font-weight:600;font-size:15px;}
+.cal-week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;}
+.cal-week span{text-align:center;font-size:11px;color:var(--text-tertiary);font-weight:600;}
+.cal-week .wknd{color:var(--danger);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.cal-grid button{
+  aspect-ratio:1;border:1px solid transparent;background:none;border-radius:var(--r-sm);
+  font-family:var(--font-mono);font-size:13.5px;font-weight:600;color:var(--text);
+  display:flex;align-items:center;justify-content:center;padding:0;
+}
+.cal-grid button.empty{visibility:hidden;}
+.cal-grid button.other{color:var(--text-tertiary);font-weight:500;}
+.cal-grid button.today{border-color:var(--accent-border);}
+.cal-grid button.in-range{background:var(--accent-soft);border-radius:0;}
+.cal-grid button.edge{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
+.cal-grid button:disabled{opacity:.35;}
+.cal-summary{margin-top:var(--sp-3);padding:10px 12px;border-radius:var(--r-sm);background:var(--surface-2);
+  border:1px solid var(--border-soft);font-size:13px;color:var(--text-secondary);text-align:center;}
+
+.alert{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:var(--r-sm);font-size:13px;font-weight:500;margin-top:var(--sp-3);border:1px solid transparent;}
+.alert .icon{margin-top:1px;}
+.alert.success{background:var(--success-soft);border-color:var(--success-border);color:var(--success);}
+.alert.danger{background:var(--danger-soft);border-color:var(--danger-border);color:var(--danger);}
+.alert.error{background:var(--danger-soft);border-color:var(--danger-border);color:var(--danger);}
+
+.last-product{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;background:rgba(255,255,255,.55);border:1px solid var(--border-soft);border-radius:var(--r-sm);margin-top:var(--sp-2);gap:var(--sp-2);}
+.last-product .name{font-weight:600;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.last-product .stock{font-family:var(--font-mono);font-weight:700;color:var(--accent-strong);white-space:nowrap;flex-shrink:0;}
+
+.inv-banner{display:flex;align-items:center;gap:10px;background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-3);}
+.inv-banner .icon{color:var(--accent);flex-shrink:0;}
+.inv-banner .txt{min-width:0;flex:1;}
+.inv-banner .txt .t1{font-weight:600;font-size:13px;}
+.inv-banner .txt .t2{font-size:11.5px;color:var(--text-secondary);}
+
+.row-item{display:flex;justify-content:space-between;align-items:center;padding:12px 2px;border-bottom:1px solid var(--border-soft);gap:var(--sp-3);}
+.row-item .inv-chk, .row-item .hist-chk{width:19px;height:19px;flex-shrink:0;accent-color:var(--accent);cursor:pointer;}
+.row-item:last-child{border-bottom:none;}
+.row-item .rmain{min-width:0;flex:1;}
+.row-item .rname{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
+.row-item .rmeta{color:var(--text-tertiary);font-size:11.5px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.row-item .rside{text-align:right;flex-shrink:0;display:flex;align-items:center;gap:10px;}
+.row-item .rval{font-family:var(--font-mono);font-weight:700;font-size:14px;white-space:nowrap;}
+.row-item .rval.low{color:#E0A030;}
+.row-item .rval.zero{color:var(--danger);}
+.row-item .rval.pos{color:var(--success);}
+.row-item .rval.neg{color:var(--danger);}
+.icon-btn{width:30px;height:30px;border-radius:var(--r-sm);background:rgba(255,255,255,.6);border:1px solid var(--border-soft);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);flex-shrink:0;}
+.icon-btn .icon{width:15px;height:15px;}
+
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:var(--r-sm);font-size:10px;font-weight:700;letter-spacing:.03em;flex-shrink:0;}
+.tag.A{background:var(--success-soft);color:var(--success);}
+.tag.B{background:rgba(255,196,77,.2);color:#C98A1D;}
+.tag.C{background:var(--danger-soft);color:var(--danger);}
+
+/* Компактная заглушка для блоков внутри карточек: там крупная иконка с
+   двумя строками пояснения занимала пол-экрана телефона ради сообщения
+   «данных нет». */
+.empty-line{padding:12px 2px;color:var(--text-tertiary);font-size:12.5px;line-height:1.35;}
+/* внутри сетки карточек заглушка занимает всю ширину, иначе текст
+   зажимается в одну колонку и переносится */
+.cat-grid .empty-line{grid-column:1 / -1;}
+
+.empty-state{display:flex;flex-direction:column;align-items:center;text-align:center;padding:var(--sp-7) var(--sp-4);color:var(--text-tertiary);gap:var(--sp-2);}
+.empty-state .icon-lg{color:var(--text-tertiary);opacity:.6;}
+.empty-state .et1{font-size:13.5px;font-weight:600;color:var(--text-secondary);}
+.empty-state .et2{font-size:12px;max-width:280px;}
+
+.field{margin-bottom:var(--sp-3);}
+.field label{display:block;font-size:11.5px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;}
+input[type=text],input[type=number],input[type=date],select{width:100%;padding:10px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:rgba(255,255,255,.6);color:var(--text);font-size:14px;transition:border-color var(--dur),background var(--dur);}
+input[type=date]{color-scheme:light;}
+input[type=text]:focus,input[type=number]:focus,input[type=date]:focus,select:focus{border-color:var(--accent-border);background:rgba(255,255,255,.9);outline:none;}
+input.invalid{border-color:var(--danger-border);}
+.field-error{color:var(--danger);font-size:11px;margin-top:4px;display:none;}
+.field-error.show{display:block;}
+.field-row{display:flex;gap:8px;align-items:flex-start;}
+.field-row > input{flex:1;}
+
+/* Строка фильтров: поиск, список и кнопка стоят рядом, а не лесенкой.
+   min-width:0 обязателен — иначе поля отказываются сжиматься и строка
+   уезжает за край телефона. */
+.filter-row{display:flex;gap:8px;align-items:center;}
+.filter-row > input{flex:1 1 0;min-width:0;}
+/* список поставщиков делим по месту так, чтобы название влезало целиком */
+.filter-row > select{flex:0 0 148px;min-width:0;font-size:13px;padding-left:10px;padding-right:26px;}
+/* если поля поиска в строке нет, списку незачем жаться */
+.filter-row > select:first-child{flex:1 1 auto;}
+.filter-row > .icon-btn-lg{flex:0 0 auto;}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 16px;border-radius:var(--r-sm);border:1px solid transparent;font-weight:600;font-size:13.5px;transition:filter var(--dur),background var(--dur);}
+.btn .icon{width:16px;height:16px;}
+.btn.primary{background:var(--accent);color:var(--accent-ink);width:100%;box-shadow:0 10px 22px -10px rgba(74,125,255,.55);}
+.btn.ghost{background:rgba(255,255,255,.65);color:var(--text);border-color:var(--border);width:100%;}
+.btn.danger{background:var(--danger-soft);color:var(--danger);border-color:var(--danger-border);}
+.btn.sm{padding:8px 12px;font-size:12.5px;}
+.btn-row{display:flex;gap:8px;}
+.btn-row .btn{flex:1;min-width:0;}
+
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.stat-tile{background:rgba(255,255,255,.55);border:1px solid var(--border-soft);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-3) var(--sp-3) 16px;min-width:0;position:relative;overflow:hidden;}
+.stat-tile::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tile-color, var(--accent));}
+.stat-tile.wide{grid-column:1 / -1;display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+.stat-tile.wide .lbl{margin-top:0;}
+.stat-tile .val{font-family:var(--font-mono);font-size:19px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.stat-tile .val.small{font-size:13px;font-family:var(--font-body);color:var(--text);}
+.stat-tile .lbl{font-size:11px;color:var(--text-tertiary);margin-top:3px;}
+
+/* кольцевая диаграмма продаж по категориям */
+.ring-card{text-align:center;}
+.ring-wrap{position:relative;width:200px;height:200px;margin:var(--sp-2) auto var(--sp-5);}
+.ring-svg{width:100%;height:100%;transform:rotate(-90deg);}
+.ring-svg circle{fill:none;stroke-linecap:round;transition:stroke-dasharray .3s ease;}
+.ring-track{stroke:rgba(36,42,61,.08);}
+/* Центр занимает только дырку кольца. Растянутый на весь круг, он
+   перехватывал нажатия, и до сегментов они не доходили. */
+.ring-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:58%;height:58%;border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 6px;}
+.ring-amount{font-family:var(--font-mono);font-size:25px;font-weight:700;color:var(--text);line-height:1.1;}
+.ring-label{font-size:11.5px;color:var(--text-secondary);margin-top:4px;}
+
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left;}
+.cat-card{background:rgba(255,255,255,.55);border:1px solid var(--border-soft);border-radius:var(--r-md);padding:var(--sp-3);position:relative;overflow:hidden;min-width:0;}
+.cat-card .cat-icon{width:32px;height:32px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:8px;}
+.cat-card .cat-icon .icon{width:16px;height:16px;stroke:#fff;}
+.cat-card .cat-name{font-weight:600;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:34px;}
+.cat-card .cat-meta{font-size:11px;color:var(--text-tertiary);margin-top:1px;}
+.cat-card .cat-amount{font-family:var(--font-mono);font-weight:700;font-size:15px;color:var(--text);margin-top:8px;}
+.cat-card .cat-share{position:absolute;top:10px;right:10px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--r-full);}
+.cat-card[onclick]{cursor:pointer;transition:box-shadow .15s ease;}
+.cat-card.selected{box-shadow:0 0 0 2px var(--seg-color, var(--accent)) inset;}
+.ring-svg circle[onclick]{cursor:pointer;transition:stroke-width .15s ease;}
+/* выбранное деление становится толще — видно, что нажатие сработало */
+.ring-svg circle.picked{stroke-width:27;}
+.ring-center[onclick]{cursor:pointer;}
+
+/* выручка: герой-карточка со столбчатым графиком по месяцам */
+.hero-card{padding-bottom:var(--sp-4);}
+.hero-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;}
+.hero-amount{font-family:var(--font-mono);font-size:30px;font-weight:700;color:var(--text);line-height:1.15;}
+.hero-growth{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;margin-top:6px;}
+.hero-growth .icon{width:14px;height:14px;}
+.hero-growth.up{color:var(--success);}
+.hero-growth.down{color:var(--danger);}
+.hero-bars{display:flex;align-items:flex-end;gap:8px;margin-top:var(--sp-5);height:74px;}
+.hero-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%;min-width:0;}
+.hero-bar{width:100%;max-width:26px;border-radius:6px 6px 3px 3px;background:var(--accent);transition:height .3s ease, box-shadow .3s ease;}
+.hero-bar.current{box-shadow:0 0 0 2px rgba(36,42,61,.16) inset, 0 4px 12px -4px rgba(36,42,61,.35);}
+.hero-bar-lbl{font-size:9.5px;color:var(--text-tertiary);text-transform:capitalize;white-space:nowrap;}
+.hero-bar-lbl.current-lbl{color:var(--text);font-weight:700;}
+
+
+nav.bottom{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom));left:12px;right:12px;margin:0 auto;max-width:696px;background:rgba(255,255,255,.78);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.6);border-radius:var(--r-lg);display:flex;justify-content:space-around;padding:7px 2px;z-index:10;box-shadow:var(--shadow-pop);}
+nav.bottom button{background:none;border:none;color:var(--text-tertiary);font-size:9.5px;font-weight:500;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 2px;flex:1;min-width:0;border-radius:var(--r-sm);}
+nav.bottom button .icon{width:20px;height:20px;}
+nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
+
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(40,44,64,.4);z-index:20;align-items:flex-end;justify-content:center;}
+.modal-bg.show{display:flex;animation:fadeBg .15s ease;}
+@keyframes fadeBg{from{opacity:0;}to{opacity:1;}}
+.modal{overscroll-behavior:contain;background:rgba(255,255,255,.96);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,.7);border-top-left-radius:var(--r-lg);border-top-right-radius:var(--r-lg);padding:var(--sp-5) var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom));width:100%;max-width:720px;max-height:88vh;overflow-y:auto;box-shadow:var(--shadow-pop);}
+/* шторку можно утянуть вниз пальцем — возврат на место плавный */
+.modal{transition:transform .18s ease;}
+.modal-bg{transition:background .18s ease;}
+/* полоска-ручка: сама по себе тонкая, поэтому область захвата шире её */
+.modal-grip{width:36px;height:4px;background:var(--border);border-radius:var(--r-full);margin:0 auto var(--sp-4);
+  position:relative;cursor:grab;touch-action:none;}
+.modal-grip::before{content:'';position:absolute;left:-40px;right:-40px;top:-14px;bottom:-14px;}
+.modal h3{font-size:16px;margin-bottom:var(--sp-4);color:var(--text);}
+
+/* ============================================================
+   ЭКРАН ВХОДА
+   Не шторка снизу, а полноценный экран: это первое, что видит человек,
+   и по нему судят обо всём приложении. Фон — тот же тёмный, что у
+   заставки, чтобы запуск и вход выглядели одним целым.
+   ============================================================ */
+#pinModalBg{
+  display:none;position:fixed;inset:0;z-index:60;
+  align-items:center;justify-content:center;padding:24px 18px;
+  background:#05070F url('splash.jpg') center center / cover no-repeat;
+  overflow-y:auto;
+}
+#pinModalBg.show{display:flex;animation:fade .2s ease;}
+/* поверх картинки — затемнение, иначе поля не читаются */
+#pinModalBg::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,7,15,.72),rgba(5,7,15,.9));}
+
+.auth-card{
+  position:relative;z-index:1;width:100%;max-width:380px;
+  background:rgba(255,255,255,.97);border-radius:24px;
+  padding:26px 22px 22px;box-shadow:0 30px 70px -20px rgba(0,0,0,.7);
+  animation:authRise .28s cubic-bezier(.2,.8,.3,1);
+}
+@keyframes authRise{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+.auth-logo{width:62px;height:62px;border-radius:18px;overflow:hidden;margin:0 auto 16px;
+  box-shadow:0 10px 24px -10px rgba(74,125,255,.8);}
+.auth-logo img{width:100%;height:100%;object-fit:cover;display:block;}
+.auth-card h2{font-family:var(--font-display);font-size:21px;font-weight:700;text-align:center;margin:0 0 6px;color:var(--text);}
+.auth-card #pinHint{margin:0 0 20px;text-align:center;font-size:13px;line-height:1.45;color:var(--text-secondary);}
+
+.auth-field{margin-bottom:14px;}
+.auth-field label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;}
+.auth-field input{
+  width:100%;padding:13px 14px;border-radius:14px;border:1.5px solid var(--border);
+  background:#fff;font-size:16px;color:var(--text);transition:border-color var(--dur),box-shadow var(--dur);
+}
+.auth-field input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);outline:none;}
+.auth-pass{position:relative;}
+.auth-pass input{padding-right:48px;}
+.auth-eye{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:38px;height:38px;border:none;background:none;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);
+}
+.auth-eye.on{color:var(--accent);}
+.auth-submit{margin-top:6px;padding:14px;border-radius:14px;font-size:15px;}
+.auth-skip{
+  display:block;width:100%;margin-top:10px;padding:12px;border:none;background:none;
+  color:var(--text-secondary);font-size:13.5px;border-radius:12px;
+}
+@media (hover:hover){ .auth-skip:hover{background:var(--accent-soft);color:var(--accent-strong);} }
+.auth-note{margin-top:14px;text-align:center;font-size:11.5px;line-height:1.4;color:var(--text-tertiary);}
+
+.toast{position:fixed;bottom:calc(96px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(6px);background:rgba(36,42,61,.94);color:#fff;border:1px solid rgba(255,255,255,.12);padding:11px 18px;border-radius:var(--r-md);font-size:13px;font-weight:500;z-index:30;opacity:0;transition:opacity var(--dur),transform var(--dur);pointer-events:none;max-width:88%;text-align:center;box-shadow:var(--shadow-pop);}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+@media (max-width:360px){
+  .seg button{font-size:10.5px;}
+  .stat-grid{gap:8px;}
+}
+
+/* ============================================================
+   ЭКРАН ЗАГРУЗКИ (сплэш)
+   ============================================================ */
+/* Фирменная заставка. Название и слоган нарисованы прямо на картинке,
+   поэтому текстом их больше не дублируем. Цвет фона совпадает с фоном
+   изображения — на экранах другой пропорции поля не бросаются в глаза. */
+#splashScreen{
+  position:fixed;inset:0;z-index:100;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  /* Именно contain, а не cover: у телефонов пропорции экрана гуляют от 16:9
+     до 20:9, и кадрирование срезало бы логотип и слоган. Поля по краям
+     заливаются тем же цветом, что и фон картинки, поэтому не читаются
+     как поля. */
+  background:#05070F url('splash.jpg') center center / contain no-repeat;
+  transition:opacity .5s ease, visibility .5s ease;
+}
+#splashScreen.hide{opacity:0;visibility:hidden;pointer-events:none;}
+.splash-loader{position:absolute;bottom:5%;z-index:1;display:flex;flex-direction:column;align-items:center;gap:10px;}
+.spinner{width:26px;height:26px;border-radius:50%;border:2.5px solid rgba(255,255,255,.16);border-top-color:#4A7DFF;animation:splashSpin .8s linear infinite;}
+@keyframes splashSpin{to{transform:rotate(360deg);}}
+.splash-loading-text{font-size:12px;color:rgba(255,255,255,.55);}
+@media (prefers-reduced-motion:reduce){
+  .spinner{animation:none;}
+}
+</style>
+</head>
+<body>
+
+<div id="splashScreen">
+  <div class="splash-loader">
+    <div class="spinner"></div>
+    <div class="splash-loading-text">Загрузка…</div>
+  </div>
+</div>
+
+<svg style="display:none">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h4v-6h2v6h4a1 1 0 0 0 1-1v-9"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 8.5 12 4l9 4.5-9 4.5-9-4.5Z"/><path d="M3 8.5v7L12 20l9-4.5v-7"/><path d="M12 13v7"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
+  <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3" rx="1"/><path d="M9 11h6M9 15h6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M11 20V4M18 20v-7"/><path d="M2.5 20h19"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h2.5l1.3-2h8.4l1.3 2H20a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.5"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 13 4.5 4.5L19 8"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-printer" viewBox="0 0 24 24"><path d="M7 8.5V4h10v4.5"/><rect x="4" y="8.5" width="16" height="8" rx="1.5"/><rect x="7" y="14" width="10" height="6.5"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 15.5Z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 .8 12.2a1 1 0 0 0 1 .8h6.4a1 1 0 0 0 1-.8L17 7"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2 20h20L12 4Z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.7 2.7L16 9"/></symbol>
+  <symbol id="i-lantern" viewBox="0 0 24 24"><path d="M9 4h6M10 4v3h4V4"/><path d="M7 7h10l-1.3 12.5a1 1 0 0 1-1 .9H9.3a1 1 0 0 1-1-.9L7 7Z"/><path d="M9.5 11h5M9.8 14.5h4.4"/></symbol>
+  <symbol id="i-in" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5"/><path d="M5 20h14"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 12h4l2 3h6l2-3h4"/><path d="M5.5 5h13l2.5 7v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7l2.5-7Z"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2H17a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2v-9Z"/><path d="M15.5 12.2h3.2a1.3 1.3 0 0 1 0 2.6h-3.2a1.3 1.3 0 0 1 0-2.6Z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3.2"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M4 4l16 16"/><path d="M9.9 5.9A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-3.4 4.1M6.6 7.9A17 17 0 0 0 2.5 12S6 18.5 12 18.5c.9 0 1.7-.1 2.5-.4"/><path d="M9.8 9.9a3.2 3.2 0 0 0 4.4 4.4"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="18.5" r="1.6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></symbol>
+  <symbol id="i-qrcode" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M18 14h3v3h-3z"/><path d="M14 18h3v3h-3z"/><path d="M18 18h3v3h-3z"/></symbol>
+</svg>
+
+<div id="app">
+
+  <div class="sticky-chrome">
+    <header class="top">
+      <div class="brand">
+        <div class="mark"><img id="headerLogoImg" src="icon-192.png" alt="Логотип" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;"></div>
+        <div class="name">
+          <h1 id="companyTitle">Склад</h1>
+          <div class="sub" id="syncLine">Данные на этом устройстве</div>
+        </div>
+      </div>
+      <div class="status-pill"><span class="dot"></span><span id="productCountPill">0 товаров</span></div>
+      <button class="icon-btn-lg" onclick="openSettings()" aria-label="Настройки"><svg class="icon"><use href="#i-gear"/></svg></button>
+    </header>
+  </div>
+
+  <main>
+
+    <section id="sec-panel" class="active">
+      <div class="page-head"><h2>Панель сканирования</h2><p>Выберите операцию и сканируйте товары один за другим</p></div>
+
+      <div class="seg">
+        <button class="on prihod" id="btnModePrihod" onclick="setMode('Приход')"><svg class="icon"><use href="#i-in"/></svg>Приход</button>
+        <button class="rashod" id="btnModeRashod" onclick="setMode('Расход')"><svg class="icon"><use href="#i-out"/></svg>Расход</button>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Ввод штрихкода</span></div>
+
+        <div class="tabs">
+          <button class="active" id="tabScannerBtn" onclick="switchInputTab('scanner')"><svg class="icon"><use href="#i-keyboard"/></svg>Сканер</button>
+          <button id="tabCameraBtn" onclick="switchInputTab('camera')"><svg class="icon"><use href="#i-camera"/></svg>Камера</button>
+        </div>
+
+        <div id="scannerStage">
+          <div class="scanbox">
+            <div class="beamline"></div>
+            <input type="text" id="scanInput" placeholder="Штрихкод…" autocomplete="off" inputmode="numeric" enterkeyhint="done">
+            <div class="hint">Наведите сканер или введите вручную + Enter</div>
+          </div>
+
+          <!-- В приходе количество спрашивается после скана: партию в сто
+               штук незачем сканировать сто раз. -->
+          <div class="cam-confirm" id="prihodConfirm" style="display:none;">
+            <div class="ccname" id="prihodConfirmName"></div>
+            <div class="ccstock" id="prihodConfirmStock"></div>
+            <div class="qty-stepper">
+              <button onclick="adjustPrihodQty(-1)" aria-label="Меньше">−</button>
+              <input type="number" id="prihodQtyInput" value="1" min="1" inputmode="numeric" enterkeyhint="done">
+              <button onclick="adjustPrihodQty(1)" aria-label="Больше">+</button>
+            </div>
+            <div class="btn-row">
+              <button class="btn ghost sm" onclick="cancelPrihodConfirm()">Отмена</button>
+              <button class="btn primary sm" onclick="confirmPrihodScan()"><svg class="icon"><use href="#i-check"/></svg>Добавить</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="cameraStage" style="display:none;">
+          <div class="cam-stage">
+            <video id="camVideo" playsinline muted></video>
+            <div class="reticle"></div>
+          </div>
+          <div class="cam-caption"><svg class="icon icon-sm"><use href="#i-keyboard"/></svg>Физический сканер продолжает работать в этом режиме</div>
+
+          <div class="cam-confirm" id="camConfirm" style="display:none;">
+            <div class="ccname" id="camConfirmName"></div>
+            <div class="ccstock" id="camConfirmStock"></div>
+            <div class="qty-stepper">
+              <button onclick="adjustCamQty(-1)" aria-label="Меньше">−</button>
+              <input type="number" id="camQtyInput" value="1" min="1">
+              <button onclick="adjustCamQty(1)" aria-label="Больше">+</button>
+            </div>
+            <div class="btn-row">
+              <button class="btn ghost sm" onclick="cancelCamConfirm()">Отмена</button>
+              <button class="btn primary sm" onclick="confirmCamScan()">Подтвердить</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert" id="statusMsgWrap" style="display:none;">
+          <svg class="icon" id="statusMsgIcon"><use href="#i-alert"/></svg>
+          <span id="statusMsg"></span>
+        </div>
+
+        <div class="last-product" id="lastProduct" style="display:none;">
+          <span class="name" id="lastName"></span>
+          <span class="stock num" id="lastStock"></span>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-stock">
+      <div class="page-head">
+        <div class="page-head-row">
+          <h2>Склад</h2>
+          <div class="head-actions" id="stockActions">
+            <button class="icon-btn-lg" onclick="toggleChromeMenu(event,'stock')" aria-label="Действия со складом" aria-haspopup="true" aria-expanded="false"><svg class="icon"><use href="#i-dots"/></svg></button>
+          </div>
+        </div>
+        <p>Все товары, остатки и штрихкоды</p>
+      </div>
+
+      <div class="t-caption" id="invoiceSelCount" style="margin-bottom:var(--sp-3);color:var(--text-tertiary);">Выбрано: 0 товаров</div>
+
+      <div class="card">
+        <div class="filter-row">
+          <input type="text" id="stockSearch" placeholder="Поиск" oninput="renderStock()">
+          <select id="supplierFilter" onchange="renderStock()" aria-label="Поставщик">
+            <option value="">Все поставщики</option>
+          </select>
+          <button class="icon-btn-lg" onclick="openScannerCapture(function(code){document.getElementById('stockSearch').value=code; renderStock();})" aria-label="Сканировать штрихкод"><svg class="icon"><use href="#i-keyboard"/></svg></button>
+        </div>
+        <div id="stockList"></div>
+      </div>
+    </section>
+
+    <section id="sec-card">
+      <div class="page-head"><h2>Поиск товара</h2><p>По штрихкоду, SKU или части названия</p></div>
+      <div class="card">
+        <div class="field-row">
+          <input type="text" id="cardSearch" placeholder="Штрихкод, SKU или название" oninput="renderCard()">
+          <button class="icon-btn-lg" onclick="openScannerCapture(function(code){document.getElementById('cardSearch').value=code; renderCard();})" aria-label="Сканировать штрихкод"><svg class="icon"><use href="#i-keyboard"/></svg></button>
+        </div>
+        <div id="cardResult"></div>
+      </div>
+    </section>
+
+    <section id="sec-inv">
+      <div class="page-head"><h2>Инвентаризация</h2><p>Пересчёт фактических остатков сканером или камерой телефона</p></div>
+      <div class="card">
+        <div id="invStatusBlock"></div>
+        <div class="btn-row" style="margin-top:var(--sp-3);" id="invActionsIdle">
+          <button class="btn primary" onclick="startInventory()"><svg class="icon"><use href="#i-check"/></svg>Начать</button>
+        </div>
+        <div class="btn-row" style="margin-top:var(--sp-3);display:none;" id="invActionsActive">
+          <button class="btn primary" onclick="finishInventory()"><svg class="icon"><use href="#i-check"/></svg>Завершить</button>
+          <button class="btn danger" onclick="cancelInventory()"><svg class="icon"><use href="#i-x"/></svg>Отменить</button>
+        </div>
+      </div>
+
+      <div class="card" id="invScanCard" style="display:none;">
+        <div class="card-head"><span class="t-eyebrow">Ввод штрихкода</span></div>
+
+        <div class="tabs">
+          <button class="active" id="invTabScannerBtn" onclick="switchInvInputTab('scanner')"><svg class="icon"><use href="#i-keyboard"/></svg>Сканер</button>
+          <button id="invTabCameraBtn" onclick="switchInvInputTab('camera')"><svg class="icon"><use href="#i-camera"/></svg>Камера</button>
+        </div>
+
+        <div id="invScannerStage">
+          <div class="scanbox">
+            <div class="beamline"></div>
+            <input type="text" id="invScanInput" placeholder="Штрихкод…" autocomplete="off" inputmode="numeric" enterkeyhint="done">
+            <div class="hint">Наведите сканер или введите вручную + Enter</div>
+          </div>
+        </div>
+
+        <div id="invCameraStage" style="display:none;">
+          <div class="cam-stage">
+            <video id="invCamVideo" playsinline muted></video>
+            <div class="reticle"></div>
+          </div>
+          <div class="cam-caption"><svg class="icon icon-sm"><use href="#i-keyboard"/></svg>Физический сканер продолжает работать в этом режиме</div>
+        </div>
+
+        <div class="alert" id="invStatusMsgWrap" style="display:none;">
+          <svg class="icon" id="invStatusMsgIcon"><use href="#i-alert"/></svg>
+          <span id="invStatusMsg"></span>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-head"><span class="t-eyebrow">Список пересчёта</span></div><div id="invList"></div></div>
+    </section>
+
+    <section id="sec-history">
+      <div class="page-head">
+        <div class="page-head-row">
+          <h2>История операций</h2>
+          <div class="head-actions" id="historyActions">
+            <button class="icon-btn-lg" onclick="toggleChromeMenu(event,'history')" aria-label="Действия с историей" aria-haspopup="true" aria-expanded="false"><svg class="icon"><use href="#i-dots"/></svg></button>
+          </div>
+        </div>
+        <p>Полный журнал приходов, расходов и корректировок</p>
+      </div>
+
+      <!-- меню переезжает к той вкладке, на которой его открыли -->
+      <div class="menu-sheet" id="chromeMenu" role="menu"></div>
+
+      <div class="t-caption" id="historySelCount" style="margin-bottom:var(--sp-3);color:var(--text-tertiary);">Выбрано: 0 записей</div>
+
+      <div class="card">
+        <div class="filter-row">
+          <select id="historyFilter" onchange="renderHistory()" aria-label="Тип операции">
+            <option value="">Все операции</option>
+            <option value="Приход">Приход</option>
+            <option value="Расход">Расход</option>
+            <option value="Корректировка">Корректировка</option>
+          </select>
+          <button class="icon-btn-lg" id="historyDateBtn" onclick="openRangeModal('history')" aria-label="Выбрать даты"><svg class="icon"><use href="#i-calendar"/></svg></button>
+        </div>
+        <div class="t-caption" id="historyRangeLabel" style="display:none;margin-top:8px;color:var(--accent-strong);"></div>
+        <div id="historyList"></div>
+      </div>
+    </section>
+
+    <section id="sec-stats">
+      <div class="page-head"><h2>Статистика</h2><p>Выручка по месяцам и ключевые показатели</p></div>
+
+      <div class="card hero-card">
+        <div class="hero-top">
+          <span class="t-eyebrow" id="heroPeriodLabel">Выручка</span>
+        </div>
+        <div class="hero-amount" id="heroAmount">0 ₽</div>
+        <div class="hero-growth" id="heroGrowth" style="display:none;"></div>
+        <div class="hero-bars" id="heroBars"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Быстрые показатели</span></div>
+        <div class="stat-grid" id="statGrid"></div>
+        <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);font-size:11.5px;">СТС — себестоимость товаров на складе. ПЧП — потенциальная чистая прибыль (если весь остаток склада продать по текущим ценам).</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Отчёты</span></div>
+        <div class="btn-row">
+          <button class="btn ghost sm" onclick="generateReport('День',1)">День</button>
+          <button class="btn ghost sm" onclick="generateReport('Неделя',7)">Неделя</button>
+          <button class="btn ghost sm" onclick="generateReport('Месяц',30)">Месяц</button>
+        </div>
+        <div id="reportsList" style="margin-top:var(--sp-2);"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">ABC-анализ</span></div>
+        <button class="btn ghost sm" onclick="generateABC()">Сформировать</button>
+        <div id="abcList" style="margin-top:var(--sp-2);"></div>
+      </div>
+    </section>
+
+    <section id="sec-settings">
+      <div class="page-head"><h2>Настройки</h2><p>Параметры системы и резервные копии</p></div>
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Логотип в шапке</span></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:var(--sp-3);">
+          <div class="mark" style="width:52px;height:52px;"><img id="logoPreviewImg" src="icon-192.png" alt="Логотип" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;"></div>
+          <div class="t-caption">Своя картинка вместо стандартного логотипа. Квадратная, до 900 КБ.</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn ghost" onclick="document.getElementById('logoFileInput').click()"><svg class="icon"><use href="#i-upload"/></svg>Загрузить</button>
+          <button class="btn ghost" onclick="resetLogo()"><svg class="icon"><use href="#i-x"/></svg>Сбросить</button>
+        </div>
+        <input type="file" id="logoFileInput" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Параметры</span></div>
+        <div class="field"><label>Название компании</label><input type="text" id="setCompany"></div>
+        <div class="field"><label>Порог низкого остатка, шт</label><input type="number" id="setLowStock"></div>
+        <div class="field"><label>Звук при сканировании</label><select id="setSound"><option value="1">Да</option><option value="0">Нет</option></select></div>
+        <div class="field"><label>Запрет ухода в минус</label><select id="setBlockNeg"><option value="1">Да</option><option value="0">Нет</option></select></div>
+        <button class="btn primary" onclick="saveSettings()"><svg class="icon"><use href="#i-check"/></svg>Сохранить</button>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Звуки сканирования</span></div>
+        <div id="soundRows"></div>
+        <input type="file" id="soundFileInput" accept="audio/*" style="display:none" onchange="handleSoundUpload(event)">
+        <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Короткий файл до 400 КБ: mp3, wav или ogg. Пока свой звук не загружен, звучит стандартный сигнал. Загруженные звуки уезжают на другие ваши устройства вместе с данными.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Синхронизация</span></div>
+        <div class="alert" id="syncStatusBox" style="margin-top:0;"></div>
+        <div class="btn-row" style="margin-top:var(--sp-3);">
+          <button class="btn ghost" onclick="syncNowFromSettings()"><svg class="icon"><use href="#i-download"/></svg>Обновить</button>
+          <button class="btn ghost" onclick="openPinModal('change')"><svg class="icon"><use href="#i-gear"/></svg>Сменить пароль</button>
+        </div>
+        <button class="btn ghost" style="margin-top:8px;" onclick="syncSignOut()"><svg class="icon"><use href="#i-x"/></svg>Выйти на этом устройстве</button>
+        <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Данные хранятся и на устройстве, и на сервере. Без сети приложение работает как обычно, а накопленное уходит при первой связи.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Резервная копия</span></div>
+        <div class="btn-row">
+          <button class="btn ghost" onclick="exportBackup()"><svg class="icon"><use href="#i-download"/></svg>Экспорт</button>
+          <button class="btn ghost" onclick="document.getElementById('importFile').click()"><svg class="icon"><use href="#i-upload"/></svg>Импорт</button>
+        </div>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importBackup(event)">
+        <div class="alert" id="storageStatus"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow" style="color:var(--danger);">Опасная зона</span></div>
+        <button class="btn danger" style="width:100%" onclick="wipeAll()"><svg class="icon"><use href="#i-trash"/></svg>Очистить все данные</button>
+      </div>
+    </section>
+
+    <!-- РАСХОДЫ / ПРИБЫЛЬ -->
+    <section id="sec-finance">
+      <div class="page-head"><h2>Расходы и прибыль</h2><p>Валовая и чистая прибыль за период, за вычетом налога, комиссии, упаковки и рекламы</p></div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Реклама каждый день</span></div>
+        <!-- Ставка вместо ежедневного ввода: сумма сама учитывается за
+             каждый день, пока её не поменяли. -->
+        <div class="filter-row">
+          <input type="number" id="adRateInput" inputmode="numeric" placeholder="Сумма в день, ₽">
+          <button class="btn primary sm" style="width:auto;white-space:nowrap;" onclick="saveAdRate()"><svg class="icon"><use href="#i-check"/></svg>Применить</button>
+        </div>
+        <div class="t-caption" id="adRateNow" style="margin-top:8px;color:var(--text-tertiary);"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <span class="t-eyebrow">Поправка за день</span>
+          <span class="t-caption" id="adSpendSavedMark" style="display:none;color:var(--success);">записано</span>
+        </div>
+        <div class="filter-row">
+          <input type="date" id="adSpendDate" onchange="loadAdSpendForDate()" aria-label="День">
+          <input type="number" id="adSpendInput" inputmode="numeric" placeholder="Сумма, ₽" oninput="markAdSpendDirty()">
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn ghost" onclick="clearAdSpendDay()"><svg class="icon"><use href="#i-x"/></svg>Убрать</button>
+          <button class="btn primary" onclick="saveAdSpend()"><svg class="icon"><use href="#i-check"/></svg>Записать</button>
+        </div>
+        <div class="t-caption" style="margin-top:8px;color:var(--text-tertiary);">Нужна, когда в конкретный день потратили не как обычно. Без поправки за день берётся сумма выше.</div>
+      </div>
+
+      <div class="period-seg">
+        <button class="active" id="finPeriodBtn1" onclick="renderFinance(1,this)">Сегодня</button>
+        <button id="finPeriodBtnYesterday" onclick="renderFinance('yesterday',this)">Вчера</button>
+        <button id="finPeriodBtn7" onclick="renderFinance(7,this)">Неделя</button>
+        <button id="finPeriodBtn30" onclick="renderFinance(30,this)">Месяц</button>
+        <!-- свой период — один календарь вместо двух полей и кнопки рядом -->
+        <button id="finPeriodBtnRange" class="period-cal" onclick="openRangeModal()" aria-label="Выбрать свой период"><svg class="icon"><use href="#i-calendar"/></svg></button>
+      </div>
+      <div class="t-caption" id="finCustomRangeLabel" style="display:none;margin:-4px 0 var(--sp-3);color:var(--accent-strong);"></div>
+
+      <div class="card ring-card">
+        <div class="card-head"><span class="t-eyebrow">Куда уходит прибыль</span></div>
+        <div class="ring-wrap">
+          <svg viewBox="0 0 220 220" class="ring-svg" id="finRingSvg"></svg>
+          <div class="ring-center" id="finRingCenter" onclick="showFinRingTotal()">
+            <div class="ring-amount" id="finRingAmount">0 ₽</div>
+            <div class="ring-label" id="finRingLabel">Чистая прибыль</div>
+          </div>
+        </div>
+        <div class="cat-grid" id="finRingGrid"></div>
+        <div class="t-caption" id="finRingHint" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Нажмите на деление кольца или карточку — в центре появится сумма именно по ней. Нажмите ещё раз (или в центр), чтобы вернуться к выручке.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Прибыль по товарам</span></div>
+        <div id="financeByProduct"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">История расходов на рекламу</span></div>
+        <div id="adSpendLog"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="bottom">
+    <button class="active" onclick="showSection('panel',this)"><svg class="icon"><use href="#i-home"/></svg>Панель</button>
+    <button onclick="showSection('stock',this)"><svg class="icon"><use href="#i-box"/></svg>Склад</button>
+    <button onclick="showSection('card',this)"><svg class="icon"><use href="#i-search"/></svg>Поиск</button>
+    <button onclick="showSection('inv',this)"><svg class="icon"><use href="#i-clipboard"/></svg>Инвент.</button>
+    <button onclick="showSection('history',this)"><svg class="icon"><use href="#i-clock"/></svg>История</button>
+    <button onclick="showSection('stats',this)"><svg class="icon"><use href="#i-chart"/></svg>Статист.</button>
+    <button onclick="showSection('finance',this)"><svg class="icon"><use href="#i-wallet"/></svg>Расходы</button>
+  </nav>
+</div>
+
+<div class="modal-bg" id="productModalBg" data-close="closeProductModal">
+  <div class="modal">
+    <div class="modal-grip"></div>
+    <h3 id="productModalTitle">Новый товар</h3>
+    <input type="hidden" id="pmSkuOriginal">
+    <div class="field"><label>SKU (уникальный код)</label><input type="text" id="pmSku"><div class="field-error" id="errSku">Укажите SKU</div></div>
+    <div class="field"><label>Название</label><input type="text" id="pmName"><div class="field-error" id="errName">Укажите название</div></div>
+    <div class="field"><label>Категория</label><input type="text" id="pmCategory"></div>
+    <div class="field"><label>Все поставщики</label><input type="text" id="pmSupplier" placeholder="Например: ООО Свет-Трейд"></div>
+    <div class="field">
+      <label>Штрихкод</label>
+      <div class="field-row">
+        <input type="text" id="pmBarcode">
+        <button class="btn ghost sm" style="width:auto;white-space:nowrap;" onclick="openScannerCapture(function(code){document.getElementById('pmBarcode').value=code;})"><svg class="icon"><use href="#i-keyboard"/></svg>Сканером</button>
+        <button class="btn ghost sm" style="width:auto;white-space:nowrap;" onclick="generateBarcodeForModal()">Сгенерировать</button>
+      </div>
+    </div>
+    <div class="field"><label>Себестоимость, ₽</label><input type="number" id="pmCost"></div>
+    <div class="field"><label>Цена продажи, ₽</label><input type="number" id="pmPrice"></div>
+    <div class="field"><label>Комиссия маркетплейса, %</label><input type="number" id="pmCommission" placeholder="0"></div>
+    <div class="field"><label>Налог, %</label><input type="number" id="pmTax" placeholder="0"></div>
+    <div class="field"><label>Упаковка, ₽ за шт</label><input type="number" id="pmPackaging" placeholder="0"></div>
+    <div class="field"><label>Скидка на доставку, ₽ за шт</label><input type="number" id="pmDeliveryDiscount" placeholder="0"></div>
+    <div class="field"><label>Остаток, шт</label><input type="number" id="pmStock"></div>
+    <div class="btn-row">
+      <button class="btn ghost" onclick="closeProductModal()">Отмена</button>
+      <button class="btn primary" id="pmSaveBtn" onclick="saveProduct()"><svg class="icon"><use href="#i-check"/></svg>Сохранить</button>
+    </div>
+    <button class="btn ghost" style="margin-top:8px;" onclick="printQRForModal()"><svg class="icon"><use href="#i-qrcode"/></svg>Создать QR-код</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-bg" id="rangeModalBg" data-close="closeRangeModal">
+  <div class="modal">
+    <div class="modal-grip"></div>
+    <h3>Свой период</h3>
+
+    <div class="cal-head">
+      <button type="button" onclick="calShift(-1)" aria-label="Предыдущий месяц">‹</button>
+      <div class="cal-title" id="calTitle"></div>
+      <button type="button" onclick="calShift(1)" aria-label="Следующий месяц">›</button>
+    </div>
+
+    <div class="cal-week"><span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span class="wknd">Сб</span><span class="wknd">Вс</span></div>
+    <div class="cal-grid" id="calGrid"></div>
+
+    <div class="cal-summary" id="calSummary">Выберите первый день периода</div>
+
+    <div class="btn-row" style="margin-top:var(--sp-3);">
+      <button class="btn ghost" onclick="closeRangeModal()">Отмена</button>
+      <button class="btn primary" id="calApply" onclick="applyCalRange()" disabled><svg class="icon"><use href="#i-check"/></svg>Показать</button>
+    </div>
+    <!-- сброс живёт здесь же: отдельная кнопка «крестик» рядом с фильтром
+         только занимала место -->
+    <button class="btn ghost" id="calReset" style="margin-top:8px;" onclick="resetCalRange()"><svg class="icon"><use href="#i-x"/></svg>Показать за всё время</button>
+  </div>
+</div>
+
+<!-- Вход — отдельный экран, а не шторка снизу: это первое, что видит
+     человек, и выглядеть оно должно как вход в приложение. -->
+<div id="pinModalBg">
+  <div class="auth-card">
+    <div class="auth-logo"><img src="icon-192.png" alt=""></div>
+    <h2 id="pinTitle">Вход в склад</h2>
+    <p id="pinHint">Один вход на телефон, планшет и компьютер — данные едут между ними сами.</p>
+
+    <div class="auth-field" id="loginField">
+      <label for="loginInput">Логин или почта</label>
+      <input type="text" id="loginInput" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="например, sklad">
+    </div>
+    <div class="auth-field">
+      <label for="pinInput">Пароль</label>
+      <div class="auth-pass">
+        <input type="password" id="pinInput" autocomplete="current-password" placeholder="не короче 6 символов">
+        <button type="button" class="auth-eye" id="pinEye" onclick="togglePassVisible()" aria-label="Показать пароль"><svg class="icon"><use href="#i-eye"/></svg></button>
+      </div>
+      <div class="field-error" id="pinError"></div>
+    </div>
+
+    <button class="btn primary auth-submit" id="pinSubmit" onclick="submitPin()"><svg class="icon"><use href="#i-check"/></svg>Войти</button>
+    <button type="button" class="auth-skip" onclick="skipPin()">Работать без синхронизации</button>
+    <div class="auth-note">Входите впервые? Придумайте логин и пароль — склад привяжется к ним.</div>
+  </div>
+</div>
+
+<!-- Количество проставляется здесь, а не в скачанном файле: введённое в
+     готовый HTML нигде не сохранится, поставщик получит пустые графы -->
+<div class="modal-bg" id="orderQtyModalBg" data-close="closeOrderQty">
+  <div class="modal">
+    <div class="modal-grip"></div>
+    <h3>Сколько заказываем</h3>
+    <p class="t-small" style="margin:0 0 var(--sp-3);">Проставьте количество — оно попадёт в накладную. Позиции с нулём в неё не войдут, а если оставить всё пустым, графа «Заказ» останется под заполнение от руки.</p>
+    <div id="orderQtyRows"></div>
+    <div class="order-total" id="orderQtyTotal"></div>
+    <div class="btn-row" style="margin-top:var(--sp-3);">
+      <button class="btn ghost" onclick="closeOrderQty()">Отмена</button>
+      <button class="btn primary" onclick="buildInvoicesFromOrder()"><svg class="icon"><use href="#i-check"/></svg>Сформировать</button>
+    </div>
+  </div>
+</div>
+
+<!-- Список готовых накладных: браузер сохраняет только один файл за раз,
+     поэтому каждую накладную забирают нажатием -->
+<div class="modal-bg" id="invoiceListModalBg" data-close="closeInvoiceList">
+  <div class="modal">
+    <div class="modal-grip"></div>
+    <h3>Накладные по поставщикам</h3>
+    <p class="t-small" style="margin:0 0 var(--sp-4);">Готово <span id="invoiceListCount"></span>. Браузер сохраняет по одному файлу за раз — забирайте по очереди.</p>
+    <div id="invoiceListRows"></div>
+    <div class="btn-row" style="margin-top:var(--sp-3);">
+      <button class="btn ghost" onclick="closeInvoiceList()">Закрыть</button>
+      <button class="btn primary" id="invoiceAllBtn" onclick="downloadAllInvoices(this)"><svg class="icon"><use href="#i-download"/></svg>Скачать все</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="scanCaptureModalBg" data-close="closeScannerCapture">
+  <div class="modal">
+    <div class="modal-grip"></div>
+    <h3>Сканирование сканером</h3>
+    <div class="scanbox">
+      <div class="beamline"></div>
+      <input type="text" id="scanCaptureInput" placeholder="Наведите сканер на штрихкод…" autocomplete="off" inputmode="numeric" enterkeyhint="done">
+      <div class="hint">Или введите вручную и нажмите Enter</div>
+    </div>
+    <button class="btn ghost" style="margin-top:var(--sp-3);" onclick="closeScannerCapture()">Отмена</button>
+  </div>
+</div>
+
+<script src="vendor/zxing.min.js"></script>
+<script src="vendor/supabase.min.js"></script>
+<script src="sync-config.js"></script>
+<script>
+let db;
+const DB_NAME = 'pro_fonari_sklad';
+const DB_VERSION = 4;
+
+function openDB(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e)=>{
+      const d = e.target.result;
+      if(!d.objectStoreNames.contains('products')) d.createObjectStore('products',{keyPath:'sku'});
+      if(!d.objectStoreNames.contains('history')) d.createObjectStore('history',{keyPath:'id',autoIncrement:true});
+      if(!d.objectStoreNames.contains('inventory')) d.createObjectStore('inventory',{keyPath:'sku'});
+      if(!d.objectStoreNames.contains('settings')) d.createObjectStore('settings',{keyPath:'key'});
+      if(!d.objectStoreNames.contains('reports')) d.createObjectStore('reports',{keyPath:'id',autoIncrement:true});
+      if(!d.objectStoreNames.contains('adspend')) d.createObjectStore('adspend',{keyPath:'dateKey'});
+
+      /* Версия 3 готовит базу к синхронизации между устройствами.
+         Записям нужен ключ, одинаковый на всех устройствах: автоинкремент
+         для этого не годится — на телефоне и на компьютере он выдаст
+         разные номера одним и тем же операциям (или один номер разным).
+         Индекс по sku нужен, чтобы считать остаток по операциям товара,
+         не перебирая всю историю. */
+      if(e.oldVersion < 3){
+        const histStore = e.target.transaction.objectStore('history');
+        if(!histStore.indexNames.contains('bySku')) histStore.createIndex('bySku','sku');
+        if(!histStore.indexNames.contains('byUid')) histStore.createIndex('byUid','uid',{unique:false});
+      }
+
+      /* Версия 4 — для синхронизации. Индекс dirty отбирает записи,
+         которые ещё не уехали на сервер: перебирать всю базу на каждом
+         сеансе связи слишком дорого. */
+      if(e.oldVersion < 4){
+        const t = e.target.transaction;
+        const hs = t.objectStore('history');
+        if(!hs.indexNames.contains('dirty')) hs.createIndex('dirty','dirty');
+        const ps = t.objectStore('products');
+        if(!ps.indexNames.contains('dirty')) ps.createIndex('dirty','dirty');
+        const as = t.objectStore('adspend');
+        if(!as.indexNames.contains('dirty')) as.createIndex('dirty','dirty');
+      }
+    };
+    req.onsuccess = (e)=>{ db = e.target.result; resolve(db); };
+    req.onerror = (e)=> reject(e);
+  });
+}
+
+/* ============================================================
+   ОСТАТОК СЧИТАЕТСЯ ИЗ ОПЕРАЦИЙ
+   Раньше остаток лежал полем в карточке товара, и сканирование его
+   перезаписывало. Для одного устройства это работало, но при синхронизации
+   ломается молча: если телефон офлайн продал 2 штуки, а компьютер — 3, то
+   один говорит «осталось 8», другой «осталось 7», и побеждает тот, кто
+   записал последним, — хотя на деле осталось 5.
+   Поэтому источник правды — операции: остаток это сумма их приращений.
+   Поле totalStock остаётся, но уже как кэш для быстрой отрисовки.
+   ============================================================ */
+function newUid(){
+  if(crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'u-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10);
+}
+
+/* Приращение остатка по записи истории. Старые записи (до версии 3) поля
+   delta не имеют, поэтому выводим его из типа операции. */
+function historyDelta(h){
+  if(typeof h.delta === 'number') return h.delta;
+  const qty = Math.abs(Number(h.qty)||0);
+  if(h.type === 'Расход') return -qty;
+  if(h.type === 'Приход') return qty;
+  return Number(h.qty)||0;   // корректировка уже со знаком
+}
+
+/* Приводит запись истории к нынешнему виду. Нужна там, где записи
+   приходят со стороны: из бэкапа старого формата у них нет ни uid, ни
+   delta, ни отметки legacy — и сервер отвергает такие строки. */
+function normalizeHistoryRow(h){
+  let changed = false;
+  if(!h.uid){ h.uid = newUid(); changed = true; }
+  if(typeof h.delta !== 'number'){ h.delta = historyDelta(h); changed = true; }
+  if(typeof h.legacy !== 'boolean'){ h.legacy = true; changed = true; }
+  return changed;
+}
+
+/* Чинит записи, попавшие в базу мимо миграции. Без этого синхронизация
+   встаёт намертво: сервер отказывает всей пачке из-за пустого uid. */
+async function repairHistoryRows(){
+  const all = await getAll('history');
+  let fixed = 0;
+  for(const h of all){
+    if(normalizeHistoryRow(h)){ await put('history', h); fixed++; }
+  }
+  return fixed;
+}
+
+function historyBySku(sku){
+  return new Promise((res,rej)=>{
+    const r = tx('history').index('bySku').getAll(sku);
+    r.onsuccess = ()=> res(r.result);
+    r.onerror = rej;
+  });
+}
+
+/* Пересчитывает остаток товара по его операциям и обновляет кэш.
+   Записи, помеченные legacy, в расчёт не идут: они относятся ко времени
+   до перехода на новую модель, а их итог уже учтён операцией
+   «Начальный остаток». */
+async function recalcStock(sku){
+  const p = await get('products', sku);
+  if(!p) return null;
+  const ops = await historyBySku(sku);
+  let stock = 0;
+  ops.forEach(h=>{ if(!h.legacy && !h.deletedAt) stock += historyDelta(h); });
+  if(p.totalStock !== stock){
+    p.totalStock = stock;
+    p.updatedAt = Date.now();
+    await put('products', p);
+  }
+  return stock;
+}
+
+/* Разовый перевод уже накопленных данных на новую модель: старая история
+   помечается как справочная, а текущий остаток каждого товара
+   закрепляется операцией «Начальный остаток», чтобы сумма приращений
+   сошлась с тем, что человек видит на экране прямо сейчас. */
+async function migrateToOperationModel(){
+  const flag = await get('settings', 'stockModel');
+  if(flag && flag.value === 'operations') return false;
+
+  const hist = await getAllLive('history');
+  for(const h of hist){
+    let changed = false;
+    if(!h.uid){ h.uid = newUid(); changed = true; }
+    if(typeof h.delta !== 'number'){ h.delta = historyDelta(h); changed = true; }
+    if(h.legacy !== true){ h.legacy = true; changed = true; }
+    if(changed) await put('history', h);
+  }
+
+  const products = await getAllLive('products');
+  const now = Date.now();
+  for(const p of products){
+    const qty = Number(p.totalStock) || 0;
+    /* нулевой остаток и так получится из пустой суммы операций —
+       заводить для него запись «Начальный остаток» незачем */
+    if(qty === 0){
+      p.updatedAt = now;
+      await put('products', p);
+      continue;
+    }
+    await put('history', {
+      uid: newUid(),
+      date: new Date(now).toLocaleDateString('ru-RU'),
+      time: new Date(now).toLocaleTimeString('ru-RU'),
+      timestamp: now,
+      type: 'Начальный остаток',
+      barcode: p.barcode || '',
+      sku: p.sku,
+      name: p.name,
+      qty: qty,
+      delta: qty,
+      stockAfter: qty,
+      legacy: false,
+      snap: priceSnapshot(p)
+    });
+    p.updatedAt = now;
+    await put('products', p);
+  }
+
+  await put('settings', {key:'stockModel', value:'operations', migratedAt: now});
+  return true;
+}
+function tx(store, mode='readonly'){ return db.transaction(store, mode).objectStore(store); }
+function getAll(store){ return new Promise((res,rej)=>{ const r = tx(store).getAll(); r.onsuccess=()=>res(r.result); r.onerror=rej; }); }
+function get(store,key){ return new Promise((res,rej)=>{ const r = tx(store).get(key); r.onsuccess=()=>res(r.result); r.onerror=rej; }); }
+/* Синхронизируемые хранилища помечаются при каждой локальной правке:
+   dirty=1 значит «ещё не уехало на сервер». Записи, пришедшие с сервера,
+   кладутся с fromSync:true — иначе они тут же уехали бы обратно. */
+const SYNCED_STORES = ['products','history','adspend'];
+function put(store,val,opts){
+  opts = opts || {};
+  if(SYNCED_STORES.indexOf(store) !== -1){
+    if(opts.fromSync){
+      val.dirty = 0;
+    } else {
+      val.updatedAt = Date.now();
+      val.dirty = 1;
+    }
+  }
+  return new Promise((res,rej)=>{ const r = tx(store,'readwrite').put(val); r.onsuccess=()=>res(r.result); r.onerror=rej; });
+}
+/* «Живые» записи — всё, кроме помеченных удалёнными. Интерфейс и расчёты
+   работают только с ними, а синхронизация видит и удалённые тоже. */
+/* Настройки — единственная запись, которая ездит между устройствами
+   целиком: в ней и название компании, и логотип, и свои звуки. Помечаем
+   её отдельно, потому что в хранилище settings лежат ещё и служебные
+   записи (курсор обмена, отметка миграции), которым на сервере делать
+   нечего. */
+async function saveAppSettings(){
+  settings.key = 'app';
+  settings.updatedAt = Date.now();
+  settings.dirty = 1;
+  return new Promise((res,rej)=>{
+    const r = tx('settings','readwrite').put(settings);
+    r.onsuccess = ()=> res(r.result);
+    r.onerror = rej;
+  });
+}
+
+/* Запись без пометок синхронизации — нужна ей самой, когда она кладёт
+   в базу то, что только что оттуда получила. */
+function putRaw(store, val){
+  return new Promise((res,rej)=>{ const r = tx(store,'readwrite').put(val); r.onsuccess=()=>res(r.result); r.onerror=rej; });
+}
+
+/* Настройки пришли с другого устройства — применяем их на месте, чтобы не
+   требовать перезапуска. */
+function applyRemoteSettings(incoming){
+  settings = incoming;
+  const title = document.getElementById('companyTitle');
+  if(title) title.textContent = String(settings.company || 'Склад').toUpperCase();
+  applyHeaderLogo();
+  loadSettingsForm();
+  // звуки могли смениться — сбрасываем разогретые проигрыватели
+  Object.keys(soundPlayers).forEach(k=> delete soundPlayers[k]);
+}
+
+async function getAllLive(store){
+  const all = await getAll(store);
+  return all.filter(r=> !r.deletedAt);
+}
+function getDirty(store){
+  return new Promise((res,rej)=>{
+    const r = tx(store).index('dirty').getAll(1);
+    r.onsuccess=()=>res(r.result); r.onerror=rej;
+  });
+}
+/* Удаление помечает запись, а не стирает её: физически стёртая строка на
+   другом устройстве просто прилетела бы обратно при следующей связи. */
+async function softDelete(store, key){
+  const row = await get(store, key);
+  if(!row) return false;
+  row.deletedAt = Date.now();
+  await put(store, row);
+  return true;
+}
+function del(store,key){ return new Promise((res,rej)=>{ const r = tx(store,'readwrite').delete(key); r.onsuccess=()=>res(); r.onerror=rej; }); }
+function clearStore(store){ return new Promise((res,rej)=>{ const r = tx(store,'readwrite').clear(); r.onsuccess=()=>res(); r.onerror=rej; }); }
+
+/* ============================================================
+   ПОСТОЯННОЕ ХРАНИЛИЩЕ
+   Вся база живёт только на этом устройстве, а браузер вправе вычистить
+   IndexedDB при нехватке места (а Safari на iOS — просто через несколько
+   недель без открытия приложения). persist() помечает хранилище как
+   постоянное, и тогда данные удаляются только руками пользователя.
+   ============================================================ */
+/* Оба вызова Storage API умеют не отвечать вовсе: пока браузер решает
+   вопрос с разрешением, промис просто висит. Без таймаута интерфейс
+   застывал бы на «проверяем» навсегда. */
+function withTimeout(promise, ms){
+  return Promise.race([promise, new Promise(r=>setTimeout(()=>r(undefined), ms))]);
+}
+async function ensurePersistentStorage(){
+  if(!navigator.storage || !navigator.storage.persist) return null;
+  try{
+    const already = await withTimeout(navigator.storage.persisted(), 3000);
+    if(already === true) return true;
+    const granted = await withTimeout(navigator.storage.persist(), 4000);
+    return (granted === undefined) ? null : granted;
+  }catch(e){ return null; }
+}
+async function storageUsageLabel(){
+  if(!navigator.storage || !navigator.storage.estimate) return '';
+  try{
+    const est = await withTimeout(navigator.storage.estimate(), 2000);
+    if(est && est.usage){
+      const mb = est.usage/1024/1024;
+      return ' · занято ' + (mb < 0.1 ? Math.round(est.usage/1024) + ' КБ' : mb.toFixed(1) + ' МБ');
+    }
+  }catch(e){}
+  return '';
+}
+function setStorageStatus(cls, icon, text){
+  const el = document.getElementById('storageStatus');
+  if(!el) return;
+  el.className = 'alert '+cls;
+  el.innerHTML = '<svg class="icon"><use href="#'+icon+'"/></svg><span>'+text+'</span>';
+}
+async function renderStorageStatus(){
+  if(!document.getElementById('storageStatus')) return;
+  setStorageStatus('', 'i-clock', 'Проверяем хранилище…');
+  const granted = await ensurePersistentStorage();
+  const used = await storageUsageLabel();
+  if(granted === true){
+    setStorageStatus('success','i-check-circle','Хранилище защищено от автоочистки'+used);
+  } else if(granted === false){
+    setStorageStatus('danger','i-alert','Браузер может очистить данные сам'+used+'. Установите приложение на главный экран и почаще делайте экспорт.');
+  } else {
+    setStorageStatus('danger','i-alert','Статус хранилища неизвестен'+used+'. Делайте экспорт регулярно.');
+  }
+}
+
+let currentMode = 'Приход';
+/* var, а не let: так настройки видны как window.settings — это нужно
+   вспомогательным скриптам и удобно при разборе проблем на устройстве */
+var settings = { key:'app', company:'Склад', lowStock:5, sound:true, blockNeg:true };
+let inventoryActive = false;
+
+window.addEventListener('DOMContentLoaded', async ()=>{
+  const splashStart = Date.now();
+  await openDB();
+  const s = await get('settings','app');
+  if(s) settings = s; else await saveAppSettings();
+  document.getElementById('companyTitle').textContent = settings.company.toUpperCase();
+  applyHeaderLogo();
+
+  const migrated = await migrateToOperationModel();
+  /* Записи могли попасть в базу мимо миграции — например, импортом
+     старого бэкапа. Без uid сервер отвергает всю пачку целиком. */
+  await repairHistoryRows();
+
+  const inv = await getAll('inventory');
+  inventoryActive = inv.length > 0;
+  syncInvActionUI();
+  updateModeUI();
+
+  const scanInput = document.getElementById('scanInput');
+  scanInput.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      const val = scanInput.value.trim();
+      if(val){ handleScan(val); scanInput.value=''; }
+    }
+  });
+  scanInput.focus();
+
+  /* Набрал количество — Enter, и товар принят. Без этого пришлось бы
+     каждый раз тянуться к кнопке, а руки заняты сканером. */
+  const prihodQtyInput = document.getElementById('prihodQtyInput');
+  prihodQtyInput.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); confirmPrihodScan(); }
+    if(e.key === 'Escape'){ e.preventDefault(); cancelPrihodConfirm(); }
+  });
+
+  const invScanInput = document.getElementById('invScanInput');
+  invScanInput.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      const val = invScanInput.value.trim();
+      if(val){ handleInventoryScan(val); invScanInput.value=''; }
+    }
+  });
+
+  const scanCaptureInput = document.getElementById('scanCaptureInput');
+  scanCaptureInput.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      const val = scanCaptureInput.value.trim();
+      if(val && scannerCaptureCallback){
+        scannerCaptureCallback(val);
+        toast('Штрихкод считан: '+val);
+        closeScannerCapture();
+      }
+    }
+  });
+
+  ['pmSku','pmName'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', validateProductForm);
+  });
+
+  setupSheetGestures();
+
+  /* Enter на клавиатуре телефона — привычный способ войти */
+  ['loginInput','pinInput'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); submitPin(); } });
+  });
+
+  await renderStock(); await renderInvList(); await renderHistory(); await renderStats(); await renderReports();
+  await updateProductCountPill();
+  loadSettingsForm();
+  renderStorageStatus();
+
+  const elapsed = Date.now() - splashStart;
+  setTimeout(hideSplash, Math.max(0, 900 - elapsed));
+
+  initSync();
+});
+/* ============================================================
+   СИНХРОНИЗАЦИЯ: ВХОД И СОСТОЯНИЕ
+   Приложение остаётся полностью рабочим без входа — тогда оно просто
+   живёт на одном устройстве, как раньше. Вход включает обмен с сервером.
+   ============================================================ */
+function setSyncLine(text){
+  const el = document.getElementById('syncLine');
+  if(el) el.textContent = text;
+}
+
+function describeSync(state, detail){
+  detail = detail || {};
+  /* Коротко: строка живёт в шапке рядом с кнопками и обрезается. */
+  if(state === 'syncing') return 'Синхронизация…';
+  if(state === 'offline') return (detail.pending ? 'Нет сети · ждут: '+detail.pending : 'Нет сети');
+  if(state === 'signed-out') return 'Только это устройство';
+  if(state === 'error') return 'Обмен не удался';
+  if(state === 'idle'){
+    if(detail.pending) return 'Ждут отправки: ' + detail.pending;
+    const t = detail.at ? new Date(detail.at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : '';
+    return t ? ('Синхронизировано в ' + t) : 'Синхронизировано';
+  }
+  return 'Данные на этом устройстве';
+}
+
+/* Вызывается синхронизацией, когда с сервера прилетели чужие изменения. */
+async function refreshAfterSync(){
+  await renderStock();
+  await renderHistory();
+  await renderStats();
+  await updateProductCountPill();
+  const active = document.querySelector('main section.active');
+  if(active && active.id === 'sec-finance') await renderFinance(currentFinancePeriod, null);
+}
+
+/* Пароль на телефоне набирают вслепую и часто ошибаются — даём посмотреть,
+   что набрано. */
+function togglePassVisible(){
+  const input = document.getElementById('pinInput');
+  const btn = document.getElementById('pinEye');
+  const shown = input.type === 'text';
+  input.type = shown ? 'password' : 'text';
+  btn.classList.toggle('on', !shown);
+  btn.setAttribute('aria-label', shown ? 'Показать пароль' : 'Скрыть пароль');
+  btn.innerHTML = '<svg class="icon"><use href="#i-' + (shown ? 'eye' : 'eye-off') + '"/></svg>';
+  input.focus();
+}
+
+function openPinModal(mode){
+  const bg = document.getElementById('pinModalBg');
+  if(!bg) return;
+  const isChange = (mode === 'change');
+  document.getElementById('pinError').classList.remove('show');
+  const pass = document.getElementById('pinInput');
+  pass.value = '';
+  pass.type = 'password';
+  pass.setAttribute('autocomplete', isChange ? 'new-password' : 'current-password');
+  document.getElementById('pinEye').classList.remove('on');
+  document.getElementById('pinEye').innerHTML = '<svg class="icon"><use href="#i-eye"/></svg>';
+
+  document.getElementById('loginField').style.display = isChange ? 'none' : 'block';
+  document.getElementById('loginInput').value = (window.Sync && Sync.lastLogin) ? Sync.lastLogin() : '';
+  document.getElementById('pinTitle').textContent = isChange ? 'Новый пароль' : 'Вход в склад';
+  document.getElementById('pinHint').textContent = isChange
+      ? 'Придумайте новый пароль, не короче 6 символов. На других устройствах нужно будет войти заново.'
+      : 'Один вход на телефон, планшет и компьютер — данные едут между ними сами.';
+  const note = document.querySelector('.auth-note');
+  if(note) note.style.display = isChange ? 'none' : 'block';
+  const skip = document.querySelector('.auth-skip');
+  if(skip) skip.style.display = isChange ? 'none' : 'block';
+
+  bg.dataset.mode = mode || 'login';
+  bg.classList.add('show');
+  setTimeout(()=>{
+    const focusId = (isChange || document.getElementById('loginInput').value) ? 'pinInput' : 'loginInput';
+    document.getElementById(focusId).focus();
+  }, 60);
+}
+function closePinModal(){
+  const bg = document.getElementById('pinModalBg');
+  if(bg) bg.classList.remove('show');
+}
+function skipPin(){
+  closePinModal();
+  setSyncLine(describeSync('signed-out'));
+}
+function pinFail(message){
+  const err = document.getElementById('pinError');
+  err.textContent = message;
+  err.classList.add('show');
+  document.getElementById('pinSubmit').disabled = false;
+}
+
+async function submitPin(){
+  const password = document.getElementById('pinInput').value || '';
+  const login = (document.getElementById('loginInput').value || '').trim();
+  const bg = document.getElementById('pinModalBg');
+  const mode = bg ? bg.dataset.mode : 'login';
+
+  if(password.length < 6){ pinFail('Пароль — не короче 6 символов'); return; }
+  if(mode !== 'change' && !login){ pinFail('Укажите логин'); return; }
+  document.getElementById('pinSubmit').disabled = true;
+
+  if(mode === 'change'){
+    const res = await Sync.changePassword(password);
+    document.getElementById('pinSubmit').disabled = false;
+    if(!res.ok){ pinFail(res.error); return; }
+    closePinModal();
+    toast('Пароль изменён. На других устройствах войдите заново');
+    return;
+  }
+
+  setSyncLine('Проверяем…');
+  const res = await Sync.signIn(login, password);
+  document.getElementById('pinSubmit').disabled = false;
+  if(!res.ok){
+    pinFail(res.error || 'Не удалось войти');
+    setSyncLine(describeSync('signed-out'));
+    return;
+  }
+  closePinModal();
+  toast(res.created ? 'Склад привязан к этому логину' : 'Вход выполнен');
+  await Sync.start();
+}
+
+async function renderSyncStatusBox(){
+  const el = document.getElementById('syncStatusBox');
+  if(!el) return;
+  if(!window.Sync || !Sync.isConfigured()){
+    el.className = 'alert';
+    el.innerHTML = '<svg class="icon"><use href="#i-alert"/></svg><span>Синхронизация не настроена — приложение работает только на этом устройстве.</span>';
+    return;
+  }
+  const user = await Sync.currentUser();
+  if(!user){
+    el.className = 'alert danger';
+    el.innerHTML = '<svg class="icon"><use href="#i-alert"/></svg><span>Вход не выполнен. Данные остаются только здесь.</span>'
+                 + '<button class="btn primary sm" style="margin-left:auto;width:auto;" onclick="openPinModal(\'login\')">Войти</button>';
+    return;
+  }
+  const pending = (await getDirty('history')).length + (await getDirty('products')).length + (await getDirty('adspend')).length;
+  el.className = pending ? 'alert' : 'alert success';
+  el.innerHTML = '<svg class="icon"><use href="#i-' + (pending ? 'clock' : 'check-circle') + '"/></svg><span>'
+               + (pending ? ('Ждут отправки: ' + pending + '. Уйдут при первой связи.') : 'Всё синхронизировано между устройствами.')
+               + '</span>';
+}
+async function syncNowFromSettings(){
+  if(!window.Sync || !Sync.isConfigured()){ toast('Синхронизация не настроена'); return; }
+  const r = await Sync.syncNow('вручную');
+  toast(r.ok ? ('Готово. Отправлено: '+(r.sent||0)+', получено: '+(r.received||0)) : ('Не вышло: '+r.error));
+  await renderSyncStatusBox();
+}
+async function syncSignOut(){
+  if(!confirm('Выйти на этом устройстве? Данные останутся здесь, но обмен с другими устройствами прекратится.')) return;
+  await Sync.signOut();
+  await renderSyncStatusBox();
+  toast('Вы вышли');
+}
+
+async function initSync(){
+  if(!window.Sync || !Sync.isConfigured()) { setSyncLine(describeSync('signed-out')); return; }
+  Sync.onStatus((state, detail)=> setSyncLine(describeSync(state, detail)));
+  window.refreshAfterSync = refreshAfterSync;
+
+  const started = await Sync.start();
+  if(!started) openPinModal('login');
+}
+
+function hideSplash(){
+  const el = document.getElementById('splashScreen');
+  if(el) el.classList.add('hide');
+}
+
+function syncInvActionUI(){
+  document.getElementById('invActionsIdle').style.display = inventoryActive ? 'none' : 'flex';
+  document.getElementById('invActionsActive').style.display = inventoryActive ? 'flex' : 'none';
+  document.getElementById('invScanCard').style.display = inventoryActive ? 'block' : 'none';
+}
+
+async function updateProductCountPill(){
+  const all = await getAllLive('products');
+  const n = all.length;
+  const word = n%10===1 && n%100!==11 ? 'товар' : (n%10>=2 && n%10<=4 && !(n%100>=12&&n%100<=14) ? 'товара' : 'товаров');
+  document.getElementById('productCountPill').textContent = n+' '+word;
+}
+
+function showSection(name, btn){
+  document.querySelectorAll('main section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+name).classList.add('active');
+  document.querySelectorAll('nav.bottom button').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  closeChromeMenu();
+  try{ window.scrollTo(0,0); }catch(e){}
+  if(name==='panel') document.getElementById('scanInput').focus();
+  if(name==='stock') renderStock();
+  if(name==='inv') renderInvList();
+  if(name==='history') renderHistory();
+  if(name==='stats') { renderStats(); renderReports(); }
+  if(name==='settings'){ renderStorageStatus(); renderSyncStatusBox(); renderSoundRows(); }
+  if(name==='finance') { renderFinance(currentFinancePeriod, null); }
+}
+function openSettings(){
+  closeChromeMenu();
+  showSection('settings', null);
+}
+
+/* ============================================================
+   МЕНЮ ДЕЙСТВИЙ ВКЛАДКИ (три точки)
+   Раньше действия висели полосой кнопок под шапкой: они занимали место
+   на каждом экране и подписи не помещались («Наклад.», «Сброс»).
+   ============================================================ */
+const CHROME_MENUS = {
+  stock: ()=>[
+    {icon:'i-plus',     title:'Добавить товар',        action:'openProductModal()'},
+    {sep:true},
+    {icon:'i-download', title:'Накладная поставщику',  action:'exportSupplierInvoice()', needsSelection:true},
+    {icon:'i-x',        title:'Снять выделение',       action:'clearInvoiceSelection()', needsSelection:true},
+    {icon:'i-trash',    title:'Удалить выбранные',     action:'deleteSelectedProducts()', needsSelection:true, danger:true},
+    {note: invoiceSelection.size
+        ? ('Отмечено: ' + invoiceSelection.size + ' ' + pluralTovar(invoiceSelection.size))
+        : 'Отметьте товары галочками в списке'}
+  ],
+  history: ()=>[
+    {icon:'i-check',    title:'Исправить остаток',     action:'deleteSelectedHistoryWithCorrection()', needsSelection:true},
+    {icon:'i-x',        title:'Снять выделение',       action:'clearHistorySelection()', needsSelection:true},
+    {sep:true},
+    {icon:'i-download', title:'Выгрузить в CSV',       action:'exportHistoryCSV()'},
+    {note: historySelection.size
+        ? ('Отмечено: ' + historySelection.size + ' ' + pluralZapis(historySelection.size))
+        : 'Отметьте записи галочками в списке'}
+  ]
+};
+let chromeMenuSection = null;
+
+function renderChromeMenu(){
+  const menu = document.getElementById('chromeMenu');
+  const build = CHROME_MENUS[chromeMenuSection];
+  if(!menu || !build) return;
+  const hasSelection = (chromeMenuSection === 'stock')
+      ? invoiceSelection.size > 0
+      : historySelection.size > 0;
+
+  menu.innerHTML = build().map(item=>{
+    if(item.sep) return '<div class="menu-sep"></div>';
+    if(item.note) return `<div class="menu-note">${escapeHtml(item.note)}</div>`;
+    const off = item.needsSelection && !hasSelection;
+    return `<button type="button" role="menuitem" class="${item.danger?'danger':''}" ${off?'disabled':''}
+      onclick="runChromeMenu(function(){ ${item.action} })">
+      <svg class="icon"><use href="#${item.icon}"/></svg>${escapeHtml(item.title)}</button>`;
+  }).join('');
+}
+const MENU_ANCHORS = {stock:'stockActions', history:'historyActions'};
+
+function toggleChromeMenu(e, section){
+  if(e) e.stopPropagation();
+  const menu = document.getElementById('chromeMenu');
+  if(!menu) return;
+
+  const alreadyOpen = menu.classList.contains('show') && chromeMenuSection === section;
+  closeChromeMenu();
+  if(alreadyOpen) return;
+
+  /* Меню одно на всё приложение и переезжает под ту кнопку, которую
+     нажали: так оно всегда прижато к своему заголовку. */
+  chromeMenuSection = section;
+  const anchor = document.getElementById(MENU_ANCHORS[section]);
+  if(!anchor) return;
+  anchor.appendChild(menu);
+
+  renderChromeMenu();
+  menu.classList.add('show');
+  const btn = anchor.querySelector('button');
+  if(btn) btn.setAttribute('aria-expanded','true');
+}
+function closeChromeMenu(){
+  const menu = document.getElementById('chromeMenu');
+  if(menu) menu.classList.remove('show');
+  document.querySelectorAll('.head-actions button').forEach(b=> b.setAttribute('aria-expanded','false'));
+}
+function runChromeMenu(fn){
+  closeChromeMenu();
+  try{ fn(); }catch(e){ toast('Не получилось: ' + e.message); }
+}
+/* меню закрывается кликом мимо и клавишей Escape */
+document.addEventListener('click', (e)=>{
+  const menu = document.getElementById('chromeMenu');
+  if(menu && menu.classList.contains('show') && !menu.contains(e.target)) closeChromeMenu();
+});
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeChromeMenu(); });
+
+/* ============================================================
+   ЗАКРЫТИЕ ОКОН: СВАЙП ВНИЗ И КАСАНИЕ ЗАТЕМНЕНИЯ
+   Окна открываются снизу как шторки, и закрываться должны так же —
+   иначе на телефоне до кнопки «Отмена» приходится долистывать всю форму.
+   ============================================================ */
+function closeSheet(bg){
+  const fn = bg && bg.dataset ? window[bg.dataset.close] : null;
+  if(typeof fn === 'function') fn();
+  else if(bg) bg.classList.remove('show');
+}
+
+function setupSheetGestures(){
+  document.querySelectorAll('.modal-bg').forEach(bg=>{
+    const sheet = bg.querySelector('.modal');
+    if(!sheet) return;
+
+    // касание по затемнению — мимо самой шторки
+    bg.addEventListener('click', (e)=>{ if(e.target === bg) closeSheet(bg); });
+
+    let startY = 0, shift = 0, dragging = false;
+
+    sheet.addEventListener('touchstart', (e)=>{
+      /* тянуть можно только от верха: иначе жест перехватит прокрутку
+         длинной формы, и до нижних полей будет не добраться */
+      if(sheet.scrollTop > 0) return;
+      dragging = true;
+      startY = e.touches[0].clientY;
+      shift = 0;
+      sheet.style.transition = 'none';
+    }, {passive:true});
+
+    /* Слушатель не passive: пока тянем шторку, нужно запретить браузеру
+       трактовать тот же жест как «потянуть страницу для обновления». */
+    sheet.addEventListener('touchmove', (e)=>{
+      if(!dragging) return;
+      shift = Math.max(0, e.touches[0].clientY - startY);
+      if(shift > 0 && e.cancelable) e.preventDefault();
+      sheet.style.transform = 'translateY(' + shift + 'px)';
+      bg.style.background = 'rgba(40,44,64,' + Math.max(0.12, 0.4 - shift/700) + ')';
+    }, {passive:false});
+
+    const finish = ()=>{
+      if(!dragging) return;
+      dragging = false;
+      sheet.style.transition = '';
+      sheet.style.transform = '';
+      bg.style.background = '';
+      // порог: случайное движение пальцем окно не захлопнет
+      if(shift > 110) closeSheet(bg);
+    };
+    sheet.addEventListener('touchend', finish);
+    sheet.addEventListener('touchcancel', finish);
+  });
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function setMode(m){
+  currentMode = m;
+  // незакрытое подтверждение из прошлого режима только мешало бы
+  cancelPrihodConfirm();
+  updateModeUI();
+  document.getElementById('scanInput').focus();
+}
+function updateModeUI(){
+  document.getElementById('btnModePrihod').classList.toggle('on', currentMode==='Приход');
+  document.getElementById('btnModeRashod').classList.toggle('on', currentMode==='Расход');
+}
+
+/* ---- приход: количество спрашиваем после скана ---- */
+let pendingPrihod = null;   // {product, barcode}
+
+function showPrihodConfirm(p, barcode){
+  pendingPrihod = {product:p, barcode};
+  document.getElementById('prihodConfirmName').textContent = p.name;
+  document.getElementById('prihodConfirmStock').textContent = 'На складе сейчас: ' + (p.totalStock||0) + ' шт';
+  const input = document.getElementById('prihodQtyInput');
+  input.value = 1;
+  document.getElementById('prihodConfirm').style.display = 'block';
+  /* фокус сразу в количество и с выделением: сканер уже отработал,
+     дальше человек просто набирает число и жмёт Enter */
+  setTimeout(()=>{ input.focus(); input.select(); }, 40);
+}
+function adjustPrihodQty(delta){
+  const input = document.getElementById('prihodQtyInput');
+  input.value = Math.max(1, Math.round(Number(input.value)||1) + delta);
+  input.focus();
+}
+function cancelPrihodConfirm(){
+  pendingPrihod = null;
+  document.getElementById('prihodConfirm').style.display = 'none';
+  const scan = document.getElementById('scanInput');
+  if(scan) scan.focus();
+}
+async function confirmPrihodScan(){
+  if(!pendingPrihod) return;
+  const qty = Math.max(1, Math.round(Number(document.getElementById('prihodQtyInput').value)||1));
+  const item = pendingPrihod;
+  pendingPrihod = null;
+  document.getElementById('prihodConfirm').style.display = 'none';
+  await applyStockOperation(item.product, item.barcode, qty);
+  const scan = document.getElementById('scanInput');
+  if(scan) scan.focus();
+}
+
+function switchInputTab(tab){
+  const isCam = tab==='camera';
+  document.getElementById('tabScannerBtn').classList.toggle('active', !isCam);
+  document.getElementById('tabCameraBtn').classList.toggle('active', isCam);
+  document.getElementById('scannerStage').style.display = isCam ? 'none' : 'block';
+  document.getElementById('cameraStage').style.display = isCam ? 'block' : 'none';
+  if(isCam){ startCamera(); } else { stopCamera(); document.getElementById('scanInput').focus(); }
+}
+
+let zxingReader = null, camOn = false;
+async function startCamera(){
+  if(camOn) return;
+  camOn = true;
+  zxingReader = new ZXing.BrowserMultiFormatReader();
+  let lastCode='', lastTime=0;
+  try{
+    await zxingReader.decodeFromVideoDevice(null, 'camVideo', async (result, err)=>{
+      if(result){
+        const text = result.getText();
+        const now = Date.now();
+        if(text===lastCode && (now-lastTime)<1500) return;
+        lastCode=text; lastTime=now;
+
+        if(pendingCam) return; // ждём подтверждения предыдущего скана
+        const p = await findProductByBarcode(text);
+        if(!p){
+          playErrorSound();
+          showStatus('Штрихкод не найден: '+text+'. Проверьте, что товар добавлен на «Складе».', 'error');
+          return;
+        }
+        showCamConfirm(p, text);
+      }
+    });
+  }catch(e){
+    toast('Камера недоступна: '+e.message);
+    switchInputTab('scanner');
+  }
+}
+function stopCamera(){
+  camOn = false;
+  if(zxingReader){ try{ zxingReader.reset(); }catch(e){} }
+  cancelCamConfirm();
+}
+
+/* ---- сканер: захват штрихкода в произвольное поле формы ---- */
+let scannerCaptureCallback = null;
+function openScannerCapture(onResult){
+  scannerCaptureCallback = onResult;
+  document.getElementById('scanCaptureModalBg').classList.add('show');
+  const inp = document.getElementById('scanCaptureInput');
+  inp.value = '';
+  setTimeout(()=>inp.focus(), 50);
+}
+function closeScannerCapture(){
+  document.getElementById('scanCaptureModalBg').classList.remove('show');
+  scannerCaptureCallback = null;
+}
+
+async function findProductByBarcode(code){
+  const all = await getAllLive('products');
+  code = String(code).trim();
+  return all.find(p=> String(p.barcode).trim() === code) || null;
+}
+
+let lastScanSku = null, lastScanMode = null, lastScanCount = 0;
+
+async function handleScan(barcode){
+  const p = await findProductByBarcode(barcode);
+  if(!p){
+    playErrorSound();
+    showStatus('Штрихкод не найден: '+barcode+'. Проверьте, что товар добавлен на «Складе».', 'error');
+    lastScanSku = null; lastScanCount = 0;
+    return;
+  }
+  /* Приход — это приёмка партии, поэтому спрашиваем количество.
+     Расход уходит поштучно и применяется сразу. */
+  if(currentMode === 'Приход'){
+    lastScanSku = null; lastScanMode = null; lastScanCount = 0;
+    showPrihodConfirm(p, barcode);
+    return;
+  }
+
+  if(p.sku === lastScanSku && currentMode === lastScanMode){
+    lastScanCount++;
+  } else {
+    lastScanSku = p.sku; lastScanMode = currentMode; lastScanCount = 1;
+  }
+  const ok = await applyStockOperation(p, barcode, 1, {displayQty: lastScanCount});
+  if(!ok){ lastScanSku = null; lastScanCount = 0; }
+}
+
+async function applyStockOperation(p, barcode, qty, opts){
+  opts = opts || {};
+  qty = Math.max(1, Math.round(Number(qty)||1));
+  const displayQty = opts.displayQty !== undefined ? opts.displayQty : qty;
+  const sign = currentMode === 'Расход' ? '−' : '+';
+
+  /* Остаток берём из базы, а не из объекта в памяти: карточка могла быть
+     прочитана до предыдущего скана или до прилёта чужой операции. */
+  const current = await recalcStock(p.sku);
+  if(current === null) return false;
+
+  if(currentMode === 'Расход' && settings.blockNeg && (current - qty < 0)){
+    playErrorSound();
+    showStatus('Недостаточно товара «'+p.name+'». На складе осталось: '+current+' шт.', 'error');
+    return false;
+  }
+
+  await logHistory(currentMode, barcode, p, qty);
+  p.totalStock = await recalcStock(p.sku);
+  showLastProduct(p);
+  showStatus(p.name+' — '+currentMode.toLowerCase()+' '+sign+displayQty+' шт.', currentMode==='Расход' ? 'danger' : 'success');
+  playSound(currentMode);
+  await renderStock();
+  return true;
+}
+
+/* ---- камера: подтверждение количества перед применением ---- */
+let pendingCam = null; // {product, barcode}
+function showCamConfirm(p, barcode){
+  pendingCam = {product:p, barcode};
+  document.getElementById('camConfirmName').textContent = p.name;
+  document.getElementById('camConfirmStock').textContent = 'На складе сейчас: '+p.totalStock+' шт';
+  document.getElementById('camQtyInput').value = 1;
+  document.getElementById('camConfirm').style.display = 'block';
+}
+function adjustCamQty(delta){
+  const inp = document.getElementById('camQtyInput');
+  let v = Math.max(1, Math.round(Number(inp.value)||1) + delta);
+  inp.value = v;
+}
+function cancelCamConfirm(){
+  pendingCam = null;
+  document.getElementById('camConfirm').style.display = 'none';
+}
+async function confirmCamScan(){
+  if(!pendingCam) return;
+  const qty = Math.max(1, Math.round(Number(document.getElementById('camQtyInput').value)||1));
+  await applyStockOperation(pendingCam.product, pendingCam.barcode, qty);
+  cancelCamConfirm();
+}
+
+function showStatus(msg, state){
+  const wrap = document.getElementById('statusMsgWrap');
+  const el = document.getElementById('statusMsg');
+  const icon = document.getElementById('statusMsgIcon');
+  wrap.style.display = 'flex';
+  wrap.className = 'alert '+state;
+  el.textContent = msg;
+  icon.innerHTML = (state==='error') ? '<use href="#i-alert"/>' : '<use href="#i-check-circle"/>';
+}
+function showLastProduct(p){
+  document.getElementById('lastProduct').style.display='flex';
+  document.getElementById('lastName').textContent = p.name;
+  document.getElementById('lastStock').textContent = p.totalStock+' шт';
+}
+/* Единый AudioContext на всё приложение — создаём/разблокируем один раз при
+   первом касании/клике (иначе браузер может молча не давать звуку начаться,
+   если AudioContext создан не «внутри» пользовательского жеста, либо создаём
+   заново на каждый скан — а к моменту async-операций жест уже «протух»). */
+let audioCtx = null;
+function unlockAudio(){
+  if(!audioCtx){
+    try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+  }
+  if(audioCtx.state === 'suspended'){ audioCtx.resume().catch(()=>{}); }
+}
+document.addEventListener('pointerdown', unlockAudio, {once:true});
+document.addEventListener('keydown', unlockAudio, {once:true});
+/* Часть браузеров выдаёт постоянное хранилище только после жеста
+   пользователя — поэтому пробуем ещё раз при первом касании. */
+document.addEventListener('pointerdown', ()=>{ renderStorageStatus(); }, {once:true});
+
+function beep(freq, startSec, durSec, gainVal){
+  if(!settings.sound) return;
+  unlockAudio();
+  if(!audioCtx) return;
+  try{
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.value = freq; g.gain.value = gainVal;
+    const t0 = audioCtx.currentTime + startSec;
+    o.start(t0); o.stop(t0 + durSec);
+  }catch(e){}
+}
+
+/* ============================================================
+   ЗВУКИ СКАНИРОВАНИЯ
+   По умолчанию — встроенные сигналы: приход выше, расход ниже, ошибка
+   двойным низким. Любой из трёх можно заменить своим файлом; он хранится
+   вместе с настройками, поэтому работает и без сети.
+   ============================================================ */
+const SOUND_KINDS = [
+  {key:'prihod', title:'Приход',  note:'короткий высокий сигнал'},
+  {key:'rashod', title:'Расход',  note:'короткий низкий сигнал'},
+  {key:'error',  title:'Ошибка',  note:'двойной низкий сигнал'}
+];
+const soundPlayers = {};
+
+function customSound(key){
+  return (settings.sounds && settings.sounds[key]) ? settings.sounds[key].data : null;
+}
+/* Возвращает false, если своего звука нет — тогда играет встроенный. */
+function playCustomSound(key){
+  const src = customSound(key);
+  if(!src) return false;
+  try{
+    let entry = soundPlayers[key];
+    if(!entry || entry.src !== src){
+      entry = {src, audio: new Audio(src)};
+      soundPlayers[key] = entry;
+    }
+    const player = entry.audio;
+    player.currentTime = 0;
+    const p = player.play();
+    if(p && p.catch) p.catch(()=>{});
+    return true;
+  }catch(e){ return false; }
+}
+
+function playSound(mode){
+  if(!settings.sound) return;
+  const key = (mode === 'Расход') ? 'rashod' : 'prihod';
+  if(playCustomSound(key)) return;
+  beep(mode === 'Расход' ? 550 : 880, 0, 0.09, 0.09);
+}
+function playErrorSound(){
+  if(!settings.sound) return;
+  if(playCustomSound('error')) return;
+  beep(220, 0, 0.1, 0.09);
+  beep(220, 0.14, 0.1, 0.09);
+}
+
+function renderSoundRows(){
+  const box = document.getElementById('soundRows');
+  if(!box) return;
+  box.innerHTML = SOUND_KINDS.map(kind=>{
+    const own = settings.sounds && settings.sounds[kind.key];
+    const label = own ? escapeHtml(own.name || 'свой файл') : ('стандартный · ' + kind.note);
+    return `<div class="row-item">
+      <div class="rmain">
+        <div class="rname">${kind.title}</div>
+        <div class="rmeta">${label}</div>
+      </div>
+      <div class="rside">
+        <button class="icon-btn" onclick="previewSound('${kind.key}')" aria-label="Прослушать ${kind.title}"><svg class="icon"><use href="#i-play"/></svg></button>
+        <button class="icon-btn" onclick="pickSound('${kind.key}')" aria-label="Загрузить звук для ${kind.title}"><svg class="icon"><use href="#i-upload"/></svg></button>
+        ${own ? `<button class="icon-btn" onclick="resetSound('${kind.key}')" aria-label="Вернуть стандартный"><svg class="icon"><use href="#i-x"/></svg></button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function previewSound(key){
+  unlockAudio();
+  if(playCustomSound(key)) return;
+  if(key === 'error') { beep(220,0,0.1,0.09); beep(220,0.14,0.1,0.09); }
+  else beep(key === 'rashod' ? 550 : 880, 0, 0.09, 0.09);
+}
+
+let pendingSoundKey = null;
+function pickSound(key){
+  pendingSoundKey = key;
+  document.getElementById('soundFileInput').click();
+}
+function handleSoundUpload(e){
+  const file = e.target.files[0];
+  const key = pendingSoundKey;
+  pendingSoundKey = null;
+  e.target.value = '';
+  if(!file || !key) return;
+  if(!file.type.startsWith('audio/')){ toast('Нужен звуковой файл'); return; }
+  if(file.size > 400*1024){ toast('Файл больше 400 КБ — возьмите звук покороче'); return; }
+
+  const reader = new FileReader();
+  reader.onload = async (ev)=>{
+    settings.sounds = settings.sounds || {};
+    settings.sounds[key] = {name: file.name, data: ev.target.result};
+    await saveAppSettings();
+    delete soundPlayers[key];
+    renderSoundRows();
+    toast('Звук сохранён');
+    previewSound(key);
+  };
+  reader.readAsDataURL(file);
+}
+async function resetSound(key){
+  if(settings.sounds) delete settings.sounds[key];
+  await saveAppSettings();
+  delete soundPlayers[key];
+  renderSoundRows();
+  toast('Вернули стандартный звук');
+}
+
+/* ============================================================
+   ЭКОНОМИКА ОПЕРАЦИИ
+   Раньше прибыль за прошлые периоды считалась по ЦЕНАМ ИЗ КАРТОЧКИ ТОВАРА
+   НА СЕЙЧАС: подняли цену — и выручка позапрошлого месяца в отчётах тоже
+   выросла, а удалили товар — его продажи вовсе пропадали из статистики.
+   Теперь каждая операция несёт снимок своих цен и ставок, и отчёты за
+   закрытый период больше не меняются задним числом.
+   ============================================================ */
+function priceSnapshot(p){
+  return {
+    price: Number(p.price)||0,
+    cost: Number(p.cost)||0,
+    taxPercent: Number(p.taxPercent)||0,
+    commissionPercent: Number(p.commissionPercent)||0,
+    packaging: Number(p.packaging)||0,
+    deliveryDiscount: Number(p.deliveryDiscount)||0
+  };
+}
+
+/* Считает деньги по одной записи истории. Источник цен: снимок в самой
+   записи, а если его нет (операция сделана до этого обновления) — текущая
+   карточка товара, как было раньше. Если нет ни того, ни другого —
+   вернёт null, и запись в расчёте не участвует. */
+function opEconomics(h, product){
+  const src = h.snap || product;
+  if(!src) return null;
+  const qty = Number(h.qty)||0;
+  const revenue = qty*(Number(src.price)||0);
+  const cost = qty*(Number(src.cost)||0);
+  const gross = revenue - cost;
+  const tax = revenue*((Number(src.taxPercent)||0)/100);
+  const comm = revenue*((Number(src.commissionPercent)||0)/100);
+  const pack = qty*(Number(src.packaging)||0);
+  const delivDiscount = qty*(Number(src.deliveryDiscount)||0);
+  return {qty, revenue, cost, gross, tax, comm, pack, delivDiscount,
+          net: gross - tax - comm - pack - delivDiscount};
+}
+
+async function logHistory(type, barcode, p, qty, opts){
+  opts = opts || {};
+  const now = new Date();
+  const delta = (opts.delta !== undefined)
+      ? opts.delta
+      : (type === 'Расход' ? -Math.abs(qty) : Math.abs(qty));
+  await put('history', {
+    uid: newUid(),
+    date: now.toLocaleDateString('ru-RU'),
+    time: now.toLocaleTimeString('ru-RU'),
+    timestamp: now.getTime(),
+    type, barcode, sku:p.sku, name:p.name, qty,
+    delta,
+    legacy: false,
+    stockAfter: (Number(p.totalStock)||0) + delta,
+    snap: priceSnapshot(p)
+  });
+}
+
+async function renderStock(){
+  const all = await getAllLive('products');
+  all.sort((a,b)=> a.name.localeCompare(b.name,'ru'));
+  const q = (document.getElementById('stockSearch').value||'').toLowerCase();
+
+  const supplierSel = document.getElementById('supplierFilter');
+  const prevSupplierValue = supplierSel.value;
+  const suppliers = [...new Set(all.map(p=>(p.supplier||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru'));
+  supplierSel.innerHTML = '<option value="">Все поставщики</option>' + suppliers.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  if(suppliers.includes(prevSupplierValue)) supplierSel.value = prevSupplierValue;
+  const supplierFilterVal = supplierSel.value;
+
+  const allSkus = new Set(all.map(p=>p.sku));
+  [...invoiceSelection].forEach(sku=>{ if(!allSkus.has(sku)) invoiceSelection.delete(sku); });
+
+  const filtered = all.filter(p=>
+    (!q || p.name.toLowerCase().includes(q) || String(p.sku).toLowerCase().includes(q) || String(p.barcode).toLowerCase().includes(q))
+    && (!supplierFilterVal || (p.supplier||'').trim() === supplierFilterVal)
+  );
+  const list = document.getElementById('stockList');
+  if(all.length===0){
+    list.innerHTML = emptyState('i-box','Товаров пока нет','Добавьте первый товар кнопкой ниже или импортируйте список из Настроек.');
+    await updateProductCountPill();
+    updateInvoiceSelCount();
+    return;
+  }
+  if(filtered.length===0){
+    list.innerHTML = emptyState('i-search','Ничего не найдено','Попробуйте изменить запрос поиска или фильтр поставщика.');
+    updateInvoiceSelCount();
+    return;
+  }
+  list.innerHTML = filtered.map(p=>{
+    let cls='';
+    if(p.totalStock<=0) cls='zero'; else if(p.totalStock<=settings.lowStock) cls='low';
+    return `<div class="row-item">
+      <input type="checkbox" class="inv-chk" aria-label="Выбрать для накладной" data-sku="${escapeAttr(p.sku)}" ${invoiceSelection.has(p.sku)?'checked':''} onchange="toggleInvoiceSelection('${escapeAttr(p.sku)}', this.checked)">
+      <div class="rmain">
+        <div class="rname">${escapeHtml(p.name)}</div>
+        <div class="rmeta">${escapeHtml(p.sku)} · ${p.barcode?escapeHtml(p.barcode):'без штрихкода'}${p.supplier?' · '+escapeHtml(p.supplier):''}</div>
+      </div>
+      <div class="rside">
+        <span class="rval ${cls}">${p.totalStock} шт</span>
+        <button class="icon-btn" onclick="editProduct('${escapeAttr(p.sku)}')" aria-label="Изменить"><svg class="icon"><use href="#i-edit"/></svg></button>
+      </div>
+    </div>`;
+  }).join('');
+  await updateProductCountPill();
+  updateInvoiceSelCount();
+}
+
+/* ---- выбор товаров галочками для накладной поставщику ---- */
+var invoiceSelection = new Set();
+function toggleInvoiceSelection(sku, checked){
+  if(checked) invoiceSelection.add(sku); else invoiceSelection.delete(sku);
+  updateInvoiceSelCount();
+}
+function clearInvoiceSelection(){
+  invoiceSelection.clear();
+  document.querySelectorAll('.inv-chk').forEach(cb=>cb.checked=false);
+  updateInvoiceSelCount();
+}
+function updateInvoiceSelCount(){
+  const el = document.getElementById('invoiceSelCount');
+  if(el) el.textContent = 'Выбрано: '+invoiceSelection.size+' '+pluralTovar(invoiceSelection.size);
+}
+function pluralTovar(n){
+  const m = n%100;
+  if(m>=11 && m<=14) return 'товаров';
+  const l = n%10;
+  if(l===1) return 'товар';
+  if(l>=2 && l<=4) return 'товара';
+  return 'товаров';
+}
+async function deleteSelectedProducts(){
+  if(invoiceSelection.size===0){
+    toast('Сначала отметьте товары галочками в списке склада');
+    return;
+  }
+  const skus = [...invoiceSelection];
+  if(!confirm('Удалить '+skus.length+' '+pluralTovar(skus.length)+' со склада? Это действие необратимо.')) return;
+  for(const sku of skus){ await softDelete('products', sku); }
+  invoiceSelection.clear();
+  toast('Удалено: '+skus.length+' '+pluralTovar(skus.length));
+  await renderStock();
+}
+
+/* Одна строка вместо блока на пол-экрана — для виджетов внутри карточек.
+   Иконка здесь только мешала: в 15 пикселей она читается как безымянный
+   прямоугольник и внимание забирает, а смысла не добавляет. */
+function emptyLine(icon, text){
+  return `<div class="empty-line">${text}</div>`;
+}
+function emptyState(icon, title, sub){
+  return `<div class="empty-state">
+    <svg class="icon-lg"><use href="#${icon}"/></svg>
+    <div class="et1">${title}</div>
+    <div class="et2">${sub}</div>
+  </div>`;
+}
+
+function openProductModal(){
+  document.getElementById('productModalTitle').textContent='Новый товар';
+  ['pmSku','pmName','pmCategory','pmSupplier','pmBarcode','pmCost','pmPrice','pmCommission','pmTax','pmPackaging','pmDeliveryDiscount','pmStock'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pmSkuOriginal').value='';
+  document.getElementById('pmSku').disabled=false;
+  clearFormErrors();
+  document.getElementById('productModalBg').classList.add('show');
+}
+async function editProduct(sku){
+  const p = await get('products', sku);
+  if(!p) return;
+  document.getElementById('productModalTitle').textContent='Изменить товар';
+  document.getElementById('pmSkuOriginal').value=p.sku;
+  document.getElementById('pmSku').value=p.sku; document.getElementById('pmSku').disabled=true;
+  document.getElementById('pmName').value=p.name;
+  document.getElementById('pmCategory').value=p.category||'';
+  document.getElementById('pmSupplier').value=p.supplier||'';
+  document.getElementById('pmBarcode').value=p.barcode||'';
+  document.getElementById('pmCost').value=p.cost||0;
+  document.getElementById('pmPrice').value=p.price||0;
+  document.getElementById('pmCommission').value=p.commissionPercent||0;
+  document.getElementById('pmTax').value=p.taxPercent||0;
+  document.getElementById('pmPackaging').value=p.packaging||0;
+  document.getElementById('pmDeliveryDiscount').value=p.deliveryDiscount||0;
+  document.getElementById('pmStock').value=p.totalStock||0;
+  clearFormErrors();
+  document.getElementById('productModalBg').classList.add('show');
+}
+function closeProductModal(){ document.getElementById('productModalBg').classList.remove('show'); }
+function clearFormErrors(){
+  document.getElementById('errSku').classList.remove('show');
+  document.getElementById('errName').classList.remove('show');
+  document.getElementById('pmSku').classList.remove('invalid');
+  document.getElementById('pmName').classList.remove('invalid');
+}
+function validateProductForm(){
+  const sku = document.getElementById('pmSku').value.trim();
+  const name = document.getElementById('pmName').value.trim();
+  document.getElementById('errSku').classList.toggle('show', !sku);
+  document.getElementById('pmSku').classList.toggle('invalid', !sku);
+  document.getElementById('errName').classList.toggle('show', !name);
+  document.getElementById('pmName').classList.toggle('invalid', !name);
+  return Boolean(sku && name);
+}
+async function saveProduct(){
+  if(!validateProductForm()){ toast('Заполните обязательные поля'); return; }
+  const sku = document.getElementById('pmSku').value.trim();
+  const name = document.getElementById('pmName').value.trim();
+  const p = {
+    sku, name,
+    category: document.getElementById('pmCategory').value.trim(),
+    supplier: document.getElementById('pmSupplier').value.trim(),
+    barcode: document.getElementById('pmBarcode').value.trim(),
+    cost: Number(document.getElementById('pmCost').value)||0,
+    price: Number(document.getElementById('pmPrice').value)||0,
+    commissionPercent: Number(document.getElementById('pmCommission').value)||0,
+    taxPercent: Number(document.getElementById('pmTax').value)||0,
+    packaging: Number(document.getElementById('pmPackaging').value)||0,
+    deliveryDiscount: Number(document.getElementById('pmDeliveryDiscount').value)||0,
+    updatedAt: Date.now(),
+  };
+
+  const existing = await get('products', sku);
+  const wantedStock = Number(document.getElementById('pmStock').value)||0;
+  /* Остаток задаётся операцией, а не полем: иначе правка карточки на одном
+     устройстве затёрла бы приходы и расходы, сделанные на другом. */
+  p.totalStock = existing ? (Number(existing.totalStock)||0) : 0;
+  await put('products', p);
+
+  const diff = wantedStock - p.totalStock;
+  if(diff !== 0){
+    await logHistory(existing ? 'Корректировка' : 'Начальный остаток', p.barcode, p, Math.abs(diff), {delta: diff});
+  }
+  await recalcStock(sku);
+
+  closeProductModal();
+  await renderStock();
+  toast('Товар сохранён');
+}
+
+async function renderCard(){
+  const q = document.getElementById('cardSearch').value.trim();
+  const box = document.getElementById('cardResult');
+  if(!q){ box.innerHTML = emptyState('i-search','Начните вводить запрос','Штрихкод, SKU или часть названия товара.'); return; }
+  const all = await getAllLive('products');
+  const ql = q.toLowerCase();
+  const p = all.find(x=> String(x.barcode)===q || String(x.sku)===q || x.name.toLowerCase().includes(ql));
+  if(!p){ box.innerHTML = emptyState('i-alert','Ничего не найдено','Проверьте штрихкод или добавьте товар на «Складе».'); return; }
+
+  const hist = await getAllLive('history');
+  const forSku = hist.filter(h=>h.sku===p.sku);
+  const prihodOps = forSku.filter(h=>h.type==='Приход');
+  const rashodOps = forSku.filter(h=>h.type==='Расход');
+  const soldTotal = rashodOps.reduce((s,h)=>s+h.qty,0);
+  const lastPrihod = prihodOps.length ? prihodOps[prihodOps.length-1].date : '—';
+  const lastRashod = rashodOps.length ? rashodOps[rashodOps.length-1].date : '—';
+
+  box.innerHTML = `
+    <div class="row-item"><div class="rmain"><div class="rname">${escapeHtml(p.name)}</div></div><span class="rval">${p.totalStock} шт</span></div>
+    <div class="row-item"><div class="rmain">SKU</div><span class="rval">${escapeHtml(p.sku)}</span></div>
+    <div class="row-item"><div class="rmain">Штрихкод</div><span class="rval">${escapeHtml(p.barcode||'—')}</span></div>
+    <div class="row-item"><div class="rmain">Категория</div><span class="rval">${escapeHtml(p.category||'—')}</span></div>
+    <div class="row-item"><div class="rmain">Все поставщики</div><span class="rval">${escapeHtml(p.supplier||'—')}</span></div>
+    <div class="row-item"><div class="rmain">Себестоимость</div><span class="rval">${p.cost} ₽</span></div>
+    <div class="row-item"><div class="rmain">Цена продажи</div><span class="rval">${p.price} ₽</span></div>
+    <div class="row-item"><div class="rmain">Последний приход</div><span class="rval">${lastPrihod}</span></div>
+    <div class="row-item"><div class="rmain">Последний расход</div><span class="rval">${lastRashod}</span></div>
+    <div class="row-item"><div class="rmain">Продано всего</div><span class="rval">${soldTotal} шт</span></div>
+    <div class="row-item"><div class="rmain">Оборот</div><span class="rval">${soldTotal*p.price} ₽</span></div>
+  `;
+}
+
+async function startInventory(){
+  const all = await getAllLive('products');
+  if(all.length===0){ toast('Сначала добавьте товары на склад'); return; }
+  await clearStore('inventory');
+  for(const p of all){
+    await put('inventory', {sku:p.sku, name:p.name, barcode:p.barcode, baseQty:p.totalStock, factQty:0});
+  }
+  inventoryActive = true;
+  syncInvActionUI();
+  document.getElementById('invScanInput').focus();
+  toast('Инвентаризация начата: '+all.length+' позиций');
+  await renderInvList();
+}
+async function cancelInventory(){
+  if(!inventoryActive){ toast('Инвентаризация не запущена'); return; }
+  await clearStore('inventory');
+  inventoryActive = false;
+  stopInvCamera();
+  syncInvActionUI();
+  await renderInvList();
+  toast('Инвентаризация отменена');
+}
+function showInvStatus(msg, ok){
+  const wrap = document.getElementById('invStatusMsgWrap');
+  const el = document.getElementById('invStatusMsg');
+  const icon = document.getElementById('invStatusMsgIcon');
+  wrap.style.display = 'flex';
+  wrap.className = 'alert '+(ok?'success':'error');
+  el.textContent = msg;
+  icon.innerHTML = ok ? '<use href="#i-check-circle"/>' : '<use href="#i-alert"/>';
+}
+async function handleInventoryScan(barcode){
+  const all = await getAll('inventory');
+  const item = all.find(i=> String(i.barcode).trim()===String(barcode).trim());
+  if(!item){ playErrorSound(); showInvStatus('Штрихкод не в списке инвентаризации: '+barcode, false); return; }
+  item.factQty += 1;
+  await put('inventory', item);
+  showInvStatus('Посчитано: '+item.name+' ('+item.factQty+' шт)', true);
+  playSound();
+  await renderInvList();
+}
+
+/* ---- камера инвентаризации (отдельная от Панели, +1 за скан) ---- */
+let invZxingReader = null, invCamOn = false;
+function switchInvInputTab(tab){
+  const isCam = tab==='camera';
+  document.getElementById('invTabScannerBtn').classList.toggle('active', !isCam);
+  document.getElementById('invTabCameraBtn').classList.toggle('active', isCam);
+  document.getElementById('invScannerStage').style.display = isCam ? 'none' : 'block';
+  document.getElementById('invCameraStage').style.display = isCam ? 'block' : 'none';
+  if(isCam){ startInvCamera(); } else { stopInvCamera(); document.getElementById('invScanInput').focus(); }
+}
+async function startInvCamera(){
+  if(invCamOn) return;
+  invCamOn = true;
+  invZxingReader = new ZXing.BrowserMultiFormatReader();
+  let lastCode='', lastTime=0;
+  try{
+    await invZxingReader.decodeFromVideoDevice(null, 'invCamVideo', (result, err)=>{
+      if(result){
+        const text = result.getText();
+        const now = Date.now();
+        if(text===lastCode && (now-lastTime)<1500) return;
+        lastCode=text; lastTime=now;
+        handleInventoryScan(text);
+      }
+    });
+  }catch(e){
+    toast('Камера недоступна: '+e.message);
+    switchInvInputTab('scanner');
+  }
+}
+function stopInvCamera(){
+  invCamOn = false;
+  if(invZxingReader){ try{ invZxingReader.reset(); }catch(e){} }
+}
+
+async function renderInvStatus(){
+  const all = await getAll('inventory');
+  const diffs = all.filter(i=>i.factQty !== i.baseQty).length;
+  const block = document.getElementById('invStatusBlock');
+  if(block){
+    block.innerHTML = inventoryActive
+      ? `<div class="t-body" style="color:var(--accent);font-weight:600;">Активна · ${all.length} позиций · расхождений: ${diffs}</div>`
+      : emptyState('i-clipboard','Инвентаризация не запущена','Нажмите «Начать» — все товары со склада скопируются в список пересчёта.');
+  }
+  return all;
+}
+async function renderInvList(){
+  const all = await renderInvStatus();
+  const list = document.getElementById('invList');
+  if(all.length===0){ list.innerHTML = emptyLine('i-inbox','Список пуст — начните инвентаризацию'); return; }
+  list.innerHTML = all.map(i=>{
+    const diff = i.factQty - i.baseQty;
+    const cls = diff===0 ? '' : (diff>0 ? 'pos' : 'neg');
+    return `<div class="row-item">
+      <div class="rmain"><div class="rname">${escapeHtml(i.name)}</div><div class="rmeta">база ${i.baseQty} · факт ${i.factQty}</div></div>
+      <span class="rval ${cls}">${diff>0?'+':''}${diff}</span>
+    </div>`;
+  }).join('');
+}
+async function finishInventory(){
+  if(!inventoryActive){ toast('Инвентаризация не запущена'); return; }
+  const all = await getAll('inventory');
+  let changed=0;
+  for(const i of all){
+    if(i.factQty === i.baseQty) continue;
+    const p = await get('products', i.sku);
+    if(!p) continue;
+    /* Приводим остаток к пересчитанному, а не к тому, что лежал в списке
+       инвентаризации: пока шёл пересчёт, на другом устройстве могли
+       появиться свои операции. */
+    const current = await recalcStock(i.sku);
+    const diff = i.factQty - current;
+    if(diff === 0) continue;
+    await logHistory('Корректировка', i.barcode, p, Math.abs(diff), {delta: diff});
+    await recalcStock(i.sku);
+    changed++;
+  }
+  await clearStore('inventory');
+  inventoryActive = false;
+  stopInvCamera();
+  syncInvActionUI();
+  await renderInvList(); await renderStock(); await renderHistory();
+  toast('Инвентаризация завершена. Скорректировано: '+changed);
+}
+
+async function renderHistory(){
+  const all = await getAllLive('history');
+  all.sort((a,b)=> b.timestamp - a.timestamp);
+  const typeFilter = document.getElementById('historyFilter').value;
+
+  let filtered = typeFilter ? all.filter(h=>h.type===typeFilter) : all;
+  if(historyRange){
+    filtered = filtered.filter(h=> h.timestamp>=historyRange.start && h.timestamp<=historyRange.end);
+  }
+  updateHistoryRangeLabel();
+  const list = document.getElementById('historyList');
+
+  const allIds = new Set(all.map(h=>h.id));
+  [...historySelection].forEach(id=>{ if(!allIds.has(id)) historySelection.delete(id); });
+  updateHistorySelCount();
+
+  if(filtered.length===0){
+    list.innerHTML = (typeFilter || historyRange)
+      ? emptyLine('i-search','Под этот фильтр операций не попало')
+      : emptyState('i-clock','Операций пока нет','Отсканируйте первый товар на «Панели», и он появится здесь.');
+    return;
+  }
+  list.innerHTML = filtered.slice(0,200).map(h=>{
+    let display, cls;
+    if(h.type==='Расход'){ display = '−'+Math.abs(h.qty); cls='neg'; }
+    else if(h.type==='Приход'){ display = '+'+Math.abs(h.qty); cls='pos'; }
+    else { display = (h.qty>0?'+':'')+h.qty; cls = h.qty>=0?'pos':'neg'; }
+    return `
+    <div class="row-item">
+      <input type="checkbox" class="hist-chk" aria-label="Выбрать запись" ${historySelection.has(h.id)?'checked':''} onchange="toggleHistorySelection(${h.id}, this.checked)">
+      <div class="rmain"><div class="rname">${escapeHtml(h.name)}</div><div class="rmeta">${h.date} · ${h.time} · ${h.type}</div></div>
+      <div class="rside">
+        <span class="rval ${cls}">${display} шт</span>
+        <button class="icon-btn" onclick="deleteHistoryEntry(${h.id})" aria-label="Удалить запись"><svg class="icon"><use href="#i-trash"/></svg></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---- выбор записей истории галочками для массового исправления ---- */
+let historySelection = new Set();
+function toggleHistorySelection(id, checked){
+  if(checked) historySelection.add(id); else historySelection.delete(id);
+  updateHistorySelCount();
+}
+function clearHistorySelection(){
+  historySelection.clear();
+  document.querySelectorAll('.hist-chk').forEach(cb=>cb.checked=false);
+  updateHistorySelCount();
+}
+function updateHistorySelCount(){
+  const el = document.getElementById('historySelCount');
+  if(el) el.textContent = 'Выбрано: '+historySelection.size+' '+pluralZapis(historySelection.size);
+}
+function pluralZapis(n){
+  const m = n%100;
+  if(m>=11 && m<=14) return 'записей';
+  const l = n%10;
+  if(l===1) return 'запись';
+  if(l>=2 && l<=4) return 'записи';
+  return 'записей';
+}
+
+/* Удаляет отмеченные записи истории и, ВМЕСТО автоматического пересчёта по
+   каждой операции, спрашивает реальное количество на складе для каждого
+   затронутого товара — это надёжнее, когда вперемешку тестировали и приход,
+   и расход, и по отдельности их уже не восстановить. */
+async function deleteSelectedHistoryWithCorrection(){
+  if(historySelection.size===0){ toast('Сначала отметьте записи галочками'); return; }
+  const ids = [...historySelection];
+  const allHist = await getAllLive('history');
+  const selectedEntries = allHist.filter(h=> ids.includes(h.id));
+
+  const bySku = {};
+  selectedEntries.forEach(h=>{ (bySku[h.sku] = bySku[h.sku] || []).push(h); });
+
+  let touched = 0, skippedSkus = [];
+
+  for(const sku in bySku){
+    const entries = bySku[sku];
+    const p = await get('products', sku);
+    const name = p ? p.name : (entries[0].name || sku);
+    const currentStock = p ? p.totalStock : 0;
+
+    const input = prompt('Сколько реально сейчас на складе товара «'+name+'»? (сейчас в приложении: '+currentStock+' шт)', String(currentStock));
+    if(input === null){ skippedSkus.push(name); continue; }
+    const newQty = Math.round(Number(input));
+    if(isNaN(newQty) || newQty < 0){ toast('Некорректное число для «'+name+'» — пропущено'); skippedSkus.push(name); continue; }
+
+    for(const h of entries){ await softDelete('history', h.id); }
+
+    if(p){
+      const current = await recalcStock(p.sku);
+      const diff = newQty - current;
+      if(diff !== 0){
+        await logHistory('Корректировка', p.barcode, p, Math.abs(diff), {delta: diff});
+      }
+      await recalcStock(p.sku);
+    }
+    touched++;
+  }
+
+  historySelection.clear();
+  if(touched>0) toast('Готово: остаток исправлен для '+touched+' '+(touched===1?'товара':'товаров'));
+  if(skippedSkus.length>0) toast('Пропущено без изменений: '+skippedSkus.join(', '));
+  await renderHistory();
+  await renderStock();
+  await renderStats();
+}
+async function deleteHistoryEntry(id){
+  const entry = await get('history', id);
+  if(!entry) return;
+  if(!confirm('Удалить запись «'+entry.name+'» ('+entry.date+' '+entry.time+')? Остаток товара будет пересчитан так, будто этой операции не было.')) return;
+
+  /* Остаток больше не нужно «откручивать» руками: он считается по
+     операциям, поэтому достаточно убрать запись и пересчитать. */
+  await softDelete('history', id);
+  const p = await recalcStock(entry.sku);
+  toast(p !== null ? 'Запись удалена, остаток пересчитан' : 'Запись удалена (товар уже удалён со склада)');
+  await renderHistory();
+  await renderStock();
+  await renderStats();
+}
+function exportHistoryCSV(){
+  getAllLive('history').then(all=>{
+    all.sort((a,b)=>b.timestamp-a.timestamp);
+    let csv = 'Дата;Время;Операция;Штрихкод;SKU;Название;Количество;Остаток после\n';
+    all.forEach(h=>{ csv += [h.date,h.time,h.type,h.barcode,h.sku,h.name,h.qty,h.stockAfter].join(';')+'\n'; });
+    downloadFile('istoriya.csv', csv, 'text/csv;charset=utf-8');
+  });
+}
+
+/* Накладная — самостоятельный HTML-документ со своими стилями: он должен
+   одинаково открываться и в браузере телефона, и на компьютере, и уходить
+   в мессенджер одним файлом. Колонка «Заказ» намеренно пустая — её
+   заполняют от руки или в поставщицкой форме. */
+function buildSupplierInvoiceHtml(products, supplier, now){
+  const dateStr = now.toLocaleDateString('ru-RU');
+  const timeStr = now.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+
+  /* Количество, проставленное перед выгрузкой, печатается в графе. Если
+     его не задали, графа остаётся пустой — под заполнение от руки. */
+  let ordered = 0, sum = 0;
+  const rows = products.map((p, i)=>{
+    const qty = Number(p.orderQty) || 0;
+    if(qty > 0){ ordered += qty; sum += qty * (Number(p.cost) || 0); }
+    return `
+      <tr>
+        <td class="c">${i+1}</td>
+        <td class="mono">${escapeHtml(p.sku)}</td>
+        <td class="order${qty > 0 ? ' filled' : ''}">${qty > 0 ? qty : ''}</td>
+        <td class="r">${Math.round(p.cost || 0)} ₽</td>
+      </tr>`;
+  }).join('');
+
+  const totalLine = ordered > 0
+      ? `Позиций: <b>${products.length}</b> · всего штук: <b>${ordered}</b> · на сумму <b>${Math.round(sum)} ₽</b>`
+      : `Позиций в заявке: <b>${products.length}</b>`;
+
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Накладная поставщику ${escapeHtml(dateStr)}</title>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;padding:20px 16px 40px;background:#f5f6f8;color:#1c2029;
+       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+       font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%;}
+  .sheet{max-width:900px;margin:0 auto;background:#fff;border-radius:10px;padding:24px 20px;
+         box-shadow:0 1px 3px rgba(20,25,40,.12);}
+  h1{margin:0 0 4px;font-size:21px;}
+  .meta{color:#5d6577;font-size:13.5px;margin-bottom:20px;}
+  .meta b{color:#1c2029;}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table{border-collapse:collapse;width:100%;font-size:14px;}
+  th,td{border:1px solid #d9dde5;padding:9px 10px;vertical-align:top;}
+  th{background:#eef1f6;text-align:left;font-size:12.5px;text-transform:uppercase;
+     letter-spacing:.04em;color:#4a5162;white-space:nowrap;}
+  td.c{text-align:center;white-space:nowrap;}
+  td.r{text-align:right;white-space:nowrap;}
+  td.mono{font-family:ui-monospace,'Cascadia Mono',Consolas,monospace;font-size:13px;white-space:nowrap;}
+  td.order{background:#fcfbf3;min-width:80px;text-align:center;}
+  td.order.filled{font-weight:700;font-size:15px;color:#1c2029;}
+  tbody tr:nth-child(even) td{background:#fafbfd;}
+  tbody tr:nth-child(even) td.order{background:#f8f7ef;}
+  .total{margin-top:18px;font-size:14px;color:#4a5162;}
+  .total b{color:#1c2029;font-size:16px;}
+
+  /* Четыре колонки помещаются даже на узком телефоне, поэтому таблица
+     остаётся таблицей — карточный режим больше не нужен. */
+  @media (max-width:420px){
+    body{padding:12px 10px 30px;}
+    .sheet{padding:16px 12px;}
+    th,td{padding:8px 6px;font-size:13px;}
+  }
+
+  @media print{
+    body{background:#fff;padding:0;font-size:12pt;}
+    .sheet{box-shadow:none;border-radius:0;padding:0;max-width:none;}
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>Накладная поставщику</h1>
+  <div class="meta">
+    от <b>${escapeHtml(dateStr)}</b>, ${escapeHtml(timeStr)}<br>
+    Поставщик: <b>${escapeHtml(supplier || 'не указан')}</b>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>№</th><th>SKU</th><th>Заказ, шт</th><th>Цена</th>
+        </tr>
+      </thead>
+      <tbody>${rows}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="total">${totalLine}</div>
+</div>
+</body>
+</html>`;
+}
+
+async function exportSupplierInvoice(){
+  if(invoiceSelection.size===0){
+    toast('Сначала отметьте товары галочками в списке склада');
+    return;
+  }
+  const all = await getAllLive('products');
+  const selected = all.filter(p=> invoiceSelection.has(p.sku));
+
+  /* Каждому поставщику — свой файл. Одним документом нельзя: накладная
+     уходит поставщику, и он не должен видеть позиции и цены остальных. */
+  const groups = new Map();
+  selected.forEach(p=>{
+    const key = (p.supplier || '').trim() || 'Без поставщика';
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  });
+
+  orderGroups = [...groups.keys()].sort((a,b)=> a.localeCompare(b,'ru')).map(supplier=>({
+    supplier,
+    items: groups.get(supplier).sort((a,b)=> String(a.sku).localeCompare(String(b.sku),'ru'))
+  }));
+  openOrderQty();
+}
+
+/* ---- ввод количеств перед выгрузкой ----
+   Заполнять графу в уже скачанном HTML бессмысленно: набранное живёт
+   только в открытой вкладке и в файл не попадает, поставщик получит
+   пустые клетки. Поэтому количество спрашиваем здесь. */
+var orderGroups = [];
+
+function openOrderQty(){
+  const box = document.getElementById('orderQtyRows');
+  box.innerHTML = orderGroups.map((g, gi)=>`
+    <div class="order-group">
+      <h4>${escapeHtml(g.supplier)}</h4>
+      ${g.items.map((p, ii)=>`
+        <div class="order-row">
+          <span class="osku">${escapeHtml(p.sku)}</span>
+          <span class="oprice">${Math.round(p.cost || 0)} ₽</span>
+          <input type="number" min="0" step="1" inputmode="numeric" placeholder="0"
+                 data-g="${gi}" data-i="${ii}" oninput="updateOrderTotal()">
+        </div>`).join('')}
+    </div>`).join('');
+  updateOrderTotal();
+  document.getElementById('orderQtyModalBg').classList.add('show');
+}
+function closeOrderQty(){
+  document.getElementById('orderQtyModalBg').classList.remove('show');
+}
+function updateOrderTotal(){
+  let qty = 0, sum = 0, positions = 0;
+  document.querySelectorAll('#orderQtyRows input').forEach(inp=>{
+    const n = Math.max(0, Math.round(Number(inp.value) || 0));
+    if(n <= 0) return;
+    const g = orderGroups[Number(inp.dataset.g)];
+    const p = g && g.items[Number(inp.dataset.i)];
+    if(!p) return;
+    positions++; qty += n; sum += n * (Number(p.cost) || 0);
+  });
+  const el = document.getElementById('orderQtyTotal');
+  el.innerHTML = qty > 0
+      ? `Позиций: <b>${positions}</b> · штук: <b>${qty}</b> · на сумму <b>${Math.round(sum)} ₽</b>`
+      : 'Количество не проставлено — графа «Заказ» останется пустой';
+}
+
+async function buildInvoicesFromOrder(){
+  // переносим введённое в товары
+  orderGroups.forEach(g=> g.items.forEach(p=>{ p.orderQty = 0; }));
+  document.querySelectorAll('#orderQtyRows input').forEach(inp=>{
+    const g = orderGroups[Number(inp.dataset.g)];
+    const p = g && g.items[Number(inp.dataset.i)];
+    if(p) p.orderQty = Math.max(0, Math.round(Number(inp.value) || 0));
+  });
+
+  const anyQty = orderGroups.some(g=> g.items.some(p=> p.orderQty > 0));
+  const now = new Date();
+  const dateSlug = now.toISOString().slice(0,10);
+
+  /* HTML, а не .txt: текстовый файл на телефоне открывать обычно нечем,
+     а .html открывает любой браузер — и заодно документ выглядит
+     накладной, а не строчками, и его можно распечатать или отправить. */
+  pendingInvoices = [];
+  orderGroups.forEach(g=>{
+    // если количества проставлены, в накладную идут только заказанные позиции
+    const items = anyQty ? g.items.filter(p=> p.orderQty > 0) : g.items;
+    if(!items.length) return;
+    const slug = g.supplier.toLowerCase().replace(/[^a-zа-яё0-9]+/gi,'_').replace(/^_+|_+$/g,'') || 'postavshchik';
+    pendingInvoices.push({
+      supplier: g.supplier,
+      count: items.length,
+      filename: 'nakladnaya_' + slug + '_' + dateSlug + '.html',
+      html: buildSupplierInvoiceHtml(items, g.supplier, now)
+    });
+  });
+
+  closeOrderQty();
+  clearInvoiceSelection();
+  await renderStock();
+
+  if(!pendingInvoices.length){ toast('Не выбрано ни одной позиции'); return; }
+
+  // один поставщик — сохраняем сразу, список ради одной строки не нужен
+  if(pendingInvoices.length === 1){
+    downloadFile(pendingInvoices[0].filename, pendingInvoices[0].html, 'text/html');
+    toast('Накладная сохранена: ' + pendingInvoices[0].count + ' ' + pluralTovar(pendingInvoices[0].count));
+    return;
+  }
+  openInvoiceList();
+}
+
+/* ---- список готовых накладных ----
+   Скачать несколько файлов подряд нельзя: браузер разрешает первый, а
+   остальные молча отбрасывает — поэтому каждую забирают нажатием, и это
+   уже жест пользователя, который блокировкой не считается. */
+var pendingInvoices = [];   // var — чтобы список был виден снаружи при разборе
+
+function openInvoiceList(){
+  const rows = document.getElementById('invoiceListRows');
+  document.getElementById('invoiceListCount').textContent =
+      pendingInvoices.length + ' ' + pluralNakladnaya(pendingInvoices.length);
+
+  const canShare = Boolean(navigator.canShare && navigator.share);
+  rows.innerHTML = pendingInvoices.map((inv, i)=>`
+    <div class="row-item">
+      <div class="rmain">
+        <div class="rname">${escapeHtml(inv.supplier)}</div>
+        <div class="rmeta">${inv.count} ${pluralTovar(inv.count)}</div>
+      </div>
+      <div class="rside">
+        ${canShare ? `<button class="icon-btn" onclick="shareInvoice(${i})" aria-label="Отправить накладную"><svg class="icon"><use href="#i-upload"/></svg></button>` : ''}
+        <button class="btn primary sm" style="width:auto;" onclick="downloadInvoice(${i}, this)"><svg class="icon"><use href="#i-download"/></svg>Скачать</button>
+      </div>
+    </div>`).join('');
+  document.getElementById('invoiceListModalBg').classList.add('show');
+}
+function closeInvoiceList(){
+  document.getElementById('invoiceListModalBg').classList.remove('show');
+}
+function downloadInvoice(i, btn){
+  const inv = pendingInvoices[i];
+  if(!inv) return;
+  downloadFile(inv.filename, inv.html, 'text/html');
+  if(btn){
+    btn.innerHTML = '<svg class="icon"><use href="#i-check"/></svg>Сохранено';
+    btn.classList.remove('primary');
+    btn.classList.add('ghost');
+  }
+}
+/* Забрать всё разом. Работает, если браузеру разрешено сохранять
+   несколько файлов подряд — разрешение выдаётся один раз на сайт, но
+   действует только в этом браузере, поэтому список с кнопками остаётся. */
+async function downloadAllInvoices(btn){
+  if(!pendingInvoices.length) return;
+  if(btn){ btn.disabled = true; btn.innerHTML = 'Сохраняем…'; }
+
+  const buttons = document.querySelectorAll('#invoiceListRows .row-item .btn');
+  for(let i=0; i<pendingInvoices.length; i++){
+    downloadInvoice(i, buttons[i]);
+    // без паузы браузер отбрасывает файлы, идущие подряд
+    if(i < pendingInvoices.length - 1) await new Promise(r=> setTimeout(r, 600));
+  }
+
+  if(btn){
+    btn.disabled = false;
+    btn.innerHTML = '<svg class="icon"><use href="#i-check"/></svg>Готово';
+  }
+  toast('Сохранено накладных: ' + pendingInvoices.length);
+}
+
+/* Отправка сразу в мессенджер — накладную всё равно шлют поставщику. */
+async function shareInvoice(i){
+  const inv = pendingInvoices[i];
+  if(!inv) return;
+  try{
+    const file = new File([inv.html], inv.filename, {type:'text/html'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:'Накладная — '+inv.supplier});
+      return;
+    }
+    await navigator.share({title:'Накладная — '+inv.supplier, text:'Накладная для поставщика '+inv.supplier});
+  }catch(e){
+    if(e && e.name === 'AbortError') return;   // человек передумал
+    toast('Отправить не вышло, но файл можно скачать');
+  }
+}
+function pluralNakladnaya(n){
+  const m = n%100;
+  if(m>=11 && m<=14) return 'накладных';
+  const l = n%10;
+  if(l===1) return 'накладная';
+  if(l>=2 && l<=4) return 'накладные';
+  return 'накладных';
+}
+
+const CAT_PALETTE = ['#4A7DFF','#FF6B78','#8C7EF2','#FFA35C','#2FBFAE','#FFC94D'];
+function pluralProdazha(n){
+  const m = n%100;
+  if(m>=11 && m<=14) return 'продаж';
+  const l = n%10;
+  if(l===1) return 'продажа';
+  if(l>=2 && l<=4) return 'продажи';
+  return 'продаж';
+}
+
+/* Выручка по месяцам (для героя-карточки на «Статистике») */
+async function computeMonthlyNetProfit(monthsBack){
+  const hist = await getAllLive('history');
+  const products = await getAllLive('products');
+  const adspend = await getAllLive('adspend');
+  const now = new Date();
+  const buckets = [];
+  for(let i=monthsBack-1;i>=0;i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const label = d.toLocaleDateString('ru-RU',{month:'short'}).replace('.','');
+    buckets.push({year:d.getFullYear(), month:d.getMonth(), label, netProfit:0});
+  }
+  hist.filter(h=>h.type==='Расход').forEach(h=>{
+    const d = new Date(h.timestamp);
+    const b = buckets.find(x=>x.year===d.getFullYear() && x.month===d.getMonth());
+    if(!b) return;
+    const e = opEconomics(h, products.find(x=>x.sku===h.sku));
+    if(!e) return;
+    b.netProfit += e.net;
+  });
+  adspend.forEach(a=>{
+    const d = new Date(a.timestamp);
+    const b = buckets.find(x=>x.year===d.getFullYear() && x.month===d.getMonth());
+    if(b) b.netProfit -= (a.amount||0);
+  });
+  return buckets;
+}
+
+async function renderStatsHero(){
+  const buckets = await computeMonthlyNetProfit(7);
+  const current = buckets[buckets.length-1];
+  const prev = buckets[buckets.length-2];
+  const growth = (prev && prev.netProfit>0) ? ((current.netProfit-prev.netProfit)/prev.netProfit*100) : null;
+
+  document.getElementById('heroPeriodLabel').textContent = 'Чистая прибыль · ' + new Date().toLocaleDateString('ru-RU',{month:'long', year:'numeric'});
+  document.getElementById('heroAmount').textContent = Math.round(current.netProfit) + ' ₽';
+
+  const growthEl = document.getElementById('heroGrowth');
+  if(growth === null){
+    growthEl.style.display = 'none';
+  } else {
+    growthEl.style.display = 'flex';
+    growthEl.className = 'hero-growth ' + (growth>=0 ? 'up' : 'down');
+    growthEl.innerHTML = `<svg class="icon"><use href="#i-${growth>=0?'in':'out'}"/></svg>${growth>=0?'+':''}${growth.toFixed(1)}% к прошлому месяцу`;
+  }
+
+  const maxAbs = Math.max(...buckets.map(b=>Math.abs(b.netProfit)), 1);
+  document.getElementById('heroBars').innerHTML = buckets.map((b,i)=>{
+    const h = Math.max(4, Math.round(Math.abs(b.netProfit)/maxAbs*64));
+    const color = b.netProfit < 0 ? '#FF6B78' : CAT_PALETTE[i % CAT_PALETTE.length];
+    const barCls = b===current ? 'hero-bar current' : 'hero-bar';
+    const lblCls = b===current ? 'hero-bar-lbl current-lbl' : 'hero-bar-lbl';
+    return `<div class="hero-bar-col"><div class="${barCls}" style="height:${h}px;background:${color};"></div><div class="${lblCls}">${b.label}</div></div>`;
+  }).join('');
+}
+
+async function renderStats(){
+  await renderStatsHero();
+
+  const hist = await getAllLive('history');
+  const todayStr = new Date().toLocaleDateString('ru-RU');
+  const today = hist.filter(h=>h.date===todayStr);
+  const soldQty = today.filter(h=>h.type==='Расход').reduce((s,h)=>s+h.qty,0);
+  const receivedQty = today.filter(h=>h.type==='Приход').reduce((s,h)=>s+h.qty,0);
+  const products = await getAllLive('products');
+  const totalStock = products.reduce((s,p)=>s+p.totalStock,0);
+
+  const potential = computeStockPotential(products);
+
+  const salesBySku = {};
+  today.filter(h=>h.type==='Расход').forEach(h=> salesBySku[h.sku]=(salesBySku[h.sku]||0)+h.qty );
+  let bestName='—', bestQty=0;
+  for(const sku in salesBySku){ if(salesBySku[sku]>bestQty){bestQty=salesBySku[sku]; const p=products.find(x=>x.sku===sku); bestName=(p?p.name:sku)+' ('+bestQty+')';} }
+
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat-tile" style="--tile-color:#E8598A" title="Себестоимость товаров на складе"><div class="val">${Math.round(potential.cost)} ₽</div><div class="lbl">СТС</div></div>
+    <div class="stat-tile" style="--tile-color:#4A7DFF" title="Потенциальная чистая прибыль товаров на складе"><div class="val">${Math.round(potential.netProfit)} ₽</div><div class="lbl">ПЧП</div></div>
+    <div class="stat-tile" style="--tile-color:#8C7EF2"><div class="val">${soldQty}</div><div class="lbl">Продано, шт</div></div>
+    <div class="stat-tile" style="--tile-color:#2BBE85"><div class="val">${receivedQty}</div><div class="lbl">Принято, шт</div></div>
+    <div class="stat-tile" style="--tile-color:#FFA35C"><div class="val">${totalStock}</div><div class="lbl">Остаток склада</div></div>
+    <div class="stat-tile" style="--tile-color:#2FBFAE"><div class="val small">${escapeHtml(bestName)}</div><div class="lbl">Топ товар дня</div></div>
+    <div class="stat-tile wide" style="--tile-color:#FFC94D"><span class="lbl">Потенциальная выручка склада</span><span class="val">${Math.round(potential.revenue)} ₽</span></div>
+  `;
+}
+
+/* Потенциальная стоимость/прибыль всего товара, лежащего сейчас на складе
+   (если бы весь остаток был продан по текущим ценам и ставкам товара) */
+function computeStockPotential(products){
+  let revenue=0, cost=0, netProfit=0;
+  products.forEach(p=>{
+    const qty = p.totalStock||0;
+    if(qty<=0) return;
+    const rev = qty*p.price;
+    const cst = qty*(p.cost||0);
+    const gross = rev - cst;
+    const tax = rev*((p.taxPercent||0)/100);
+    const comm = rev*((p.commissionPercent||0)/100);
+    const pack = qty*(p.packaging||0);
+    const delivDiscount = qty*(p.deliveryDiscount||0);
+    revenue += rev; cost += cst; netProfit += (gross - tax - comm - pack - delivDiscount);
+  });
+  return {revenue, cost, netProfit};
+}
+
+async function generateReport(label, days){
+  const hist = await getAllLive('history');
+  const products = await getAllLive('products');
+  const end = new Date(); const start = new Date(); start.setDate(start.getDate()-(days-1));
+  start.setHours(0,0,0,0);
+  const filtered = hist.filter(h=> h.timestamp >= start.getTime() && h.timestamp <= end.getTime());
+  const prihodOps = filtered.filter(h=>h.type==='Приход').length;
+  const rashodOps = filtered.filter(h=>h.type==='Расход').length;
+  const soldQty = filtered.filter(h=>h.type==='Расход').reduce((s,h)=>s+h.qty,0);
+  const receivedQty = filtered.filter(h=>h.type==='Приход').reduce((s,h)=>s+h.qty,0);
+  const salesBySku = {};
+  filtered.filter(h=>h.type==='Расход').forEach(h=> salesBySku[h.sku]=(salesBySku[h.sku]||0)+h.qty );
+  let revenue=0, bestSku='', bestQty=0;
+  for(const sku in salesBySku){
+    const p = products.find(x=>x.sku===sku);
+    if(p) revenue += salesBySku[sku]*p.price;
+    if(salesBySku[sku]>bestQty){bestQty=salesBySku[sku]; bestSku=sku;}
+  }
+  const bestP = products.find(x=>x.sku===bestSku);
+  const bestName = bestP ? bestP.name+' ('+bestQty+' шт)' : '—';
+  await put('reports', {
+    label, start:start.toLocaleDateString('ru-RU'), end:end.toLocaleDateString('ru-RU'),
+    prihodOps, rashodOps, soldQty, receivedQty, revenue, bestName,
+    generatedAt: new Date().toLocaleString('ru-RU')
+  });
+  toast('Отчёт сформирован: '+label);
+  await renderReports();
+}
+async function renderReports(){
+  const all = await getAll('reports');
+  all.sort((a,b)=>b.id-a.id);
+  const list = document.getElementById('reportsList');
+  if(all.length===0){ list.innerHTML = emptyLine('i-chart','Отчётов пока нет — выберите период выше'); return; }
+  list.innerHTML = all.slice(0,10).map(r=>`
+    <div class="row-item">
+      <div class="rmain"><div class="rname">${r.label} (${r.start}–${r.end})</div><div class="rmeta">${r.prihodOps} прих. · ${r.rashodOps} расх. · выручка ${r.revenue} ₽ · топ: ${escapeHtml(r.bestName)}</div></div>
+    </div>`).join('');
+}
+
+/* ============================================================
+   РАСХОДЫ / ПРИБЫЛЬ (валовая и чистая)
+   ============================================================ */
+/* var, а не let: так текущий период виден как window.currentFinancePeriod —
+   пригождается при разборе проблем и в проверках */
+var currentFinancePeriod = 1;
+
+/* period: null = всё время, 1/7/30 = последние N дней (включая сегодня),
+   'yesterday' = ровно вчерашний календарный день,
+   {start,end} (мс) = произвольный период, выбранный вручную по календарю */
+function getPeriodRange(period){
+  if(period===null) return null;
+  if(typeof period === 'object' && period.start !== undefined){
+    return {start: period.start, end: period.end};
+  }
+  const end = new Date(); const start = new Date();
+  if(period==='yesterday'){
+    start.setDate(start.getDate()-1); start.setHours(0,0,0,0);
+    end.setDate(end.getDate()-1); end.setHours(23,59,59,999);
+  } else {
+    start.setDate(start.getDate()-(period-1)); start.setHours(0,0,0,0);
+  }
+  return {start: start.getTime(), end: end.getTime()};
+}
+
+/* ============================================================
+   КАЛЕНДАРЬ СВОЕГО ПЕРИОДА
+   Раньше это были два поля с датами и кнопка рядом — три отдельных
+   элемента ради одного действия. Теперь одно окно: отметил начало,
+   отметил конец, нажал «Показать».
+   ============================================================ */
+let calView = null;      // месяц, который показан
+let calStart = null;     // выбранное начало (Date, полночь)
+let calEnd = null;       // выбранный конец
+
+function dayKey(d){ return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate(); }
+function sameDay(a,b){ return a && b && dayKey(a) === dayKey(b); }
+function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
+
+/* Один и тот же календарь обслуживает и «Расходы», и «Историю» —
+   разница только в том, куда уходит выбранный период. */
+let calTarget = 'finance';
+var historyRange = null;   // {start, end} или null — показывать всё
+
+function openRangeModal(target){
+  calTarget = target || 'finance';
+  const current = (calTarget === 'history') ? historyRange : currentFinancePeriod;
+  const isRange = current && typeof current === 'object';
+
+  const base = isRange ? new Date(current.start) : new Date();
+  calView = new Date(base.getFullYear(), base.getMonth(), 1);
+  if(isRange){
+    calStart = startOfDay(new Date(current.start));
+    calEnd = startOfDay(new Date(current.end));
+  } else {
+    calStart = null; calEnd = null;
+  }
+
+  document.querySelector('#rangeModalBg h3').textContent =
+      (calTarget === 'history') ? 'Даты в истории' : 'Свой период';
+  document.getElementById('calReset').style.display = (calTarget === 'history') ? 'flex' : 'none';
+
+  renderCal();
+  document.getElementById('rangeModalBg').classList.add('show');
+}
+
+async function resetCalRange(){
+  historyRange = null;
+  closeRangeModal();
+  updateHistoryRangeLabel();
+  await renderHistory();
+}
+function updateHistoryRangeLabel(){
+  const label = document.getElementById('historyRangeLabel');
+  const btn = document.getElementById('historyDateBtn');
+  if(!label) return;
+  if(historyRange){
+    label.style.display = 'block';
+    label.textContent = 'Показаны даты: ' + new Date(historyRange.start).toLocaleDateString('ru-RU')
+        + ' – ' + new Date(historyRange.end).toLocaleDateString('ru-RU');
+    if(btn) btn.classList.add('active-filter');
+  } else {
+    label.style.display = 'none';
+    if(btn) btn.classList.remove('active-filter');
+  }
+}
+function closeRangeModal(){
+  document.getElementById('rangeModalBg').classList.remove('show');
+}
+function calShift(delta){
+  calView = new Date(calView.getFullYear(), calView.getMonth() + delta, 1);
+  renderCal();
+}
+
+function renderCal(){
+  /* Собираем заголовок сами: локаль отдаёт «июль 2026 г.», а capitalize
+     превращает хвост в «Г.» */
+  const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                  'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  document.getElementById('calTitle').textContent =
+      MONTHS[calView.getMonth()] + ' ' + calView.getFullYear();
+
+  const year = calView.getFullYear(), month = calView.getMonth();
+  const first = new Date(year, month, 1);
+  /* getDay() считает неделю с воскресенья, а календарь у нас с понедельника */
+  const shift = (first.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = startOfDay(new Date());
+
+  let html = '';
+  for(let i=0;i<shift;i++) html += '<button class="empty" disabled></button>';
+
+  for(let day=1; day<=daysInMonth; day++){
+    const d = new Date(year, month, day);
+    const cls = [];
+    if(sameDay(d, today)) cls.push('today');
+    if(sameDay(d, calStart) || sameDay(d, calEnd)) cls.push('edge');
+    else if(calStart && calEnd && d > calStart && d < calEnd) cls.push('in-range');
+    // будущие дни выбирать незачем: операций там нет
+    const disabled = d > today ? 'disabled' : '';
+    html += `<button type="button" class="${cls.join(' ')}" ${disabled} onclick="calPick(${year},${month},${day})">${day}</button>`;
+  }
+  document.getElementById('calGrid').innerHTML = html;
+
+  const summary = document.getElementById('calSummary');
+  const apply = document.getElementById('calApply');
+  if(calStart && calEnd){
+    const days = Math.round((calEnd - calStart)/86400000) + 1;
+    summary.textContent = calStart.toLocaleDateString('ru-RU') + ' — ' + calEnd.toLocaleDateString('ru-RU')
+        + ' · ' + days + ' ' + pluralDney(days);
+    apply.disabled = false;
+  } else if(calStart){
+    summary.textContent = 'Начало: ' + calStart.toLocaleDateString('ru-RU') + '. Теперь выберите последний день';
+    apply.disabled = true;
+  } else {
+    summary.textContent = 'Выберите первый день периода';
+    apply.disabled = true;
+  }
+}
+function pluralDney(n){
+  const m = n%100;
+  if(m>=11 && m<=14) return 'дней';
+  const l = n%10;
+  if(l===1) return 'день';
+  if(l>=2 && l<=4) return 'дня';
+  return 'дней';
+}
+
+function calPick(year, month, day){
+  const d = new Date(year, month, day);
+  if(!calStart || (calStart && calEnd)){
+    calStart = d; calEnd = null;
+  } else if(d < calStart){
+    /* ткнули раньше начала — считаем это новым началом, а не ошибкой */
+    calStart = d;
+  } else {
+    calEnd = d;
+  }
+  renderCal();
+}
+
+async function applyCalRange(){
+  if(!calStart || !calEnd) return;
+  const start = new Date(calStart); start.setHours(0,0,0,0);
+  const end = new Date(calEnd); end.setHours(23,59,59,999);
+  const range = {start: start.getTime(), end: end.getTime()};
+  closeRangeModal();
+
+  if(calTarget === 'history'){
+    historyRange = range;
+    updateHistoryRangeLabel();
+    await renderHistory();
+    return;
+  }
+  await renderFinance(range, null);
+}
+
+async function computeFinance(days){
+  const hist = await getAllLive('history');
+  const products = await getAllLive('products');
+  let filtered;
+  if(days===null){
+    filtered = hist.filter(h=>h.type==='Расход');
+  } else {
+    const range = getPeriodRange(days);
+    filtered = hist.filter(h=> h.type==='Расход' && h.timestamp>=range.start && h.timestamp<=range.end);
+  }
+
+  let revenue=0, cogs=0, grossProfit=0, taxAmount=0, commissionAmount=0, packagingAmount=0, deliveryDiscountAmount=0;
+  const bySku = {};
+
+  filtered.forEach(h=>{
+    const p = products.find(x=>x.sku===h.sku);
+    const e = opEconomics(h, p);
+    if(!e) return;
+
+    revenue += e.revenue; cogs += e.cost; grossProfit += e.gross;
+    taxAmount += e.tax; commissionAmount += e.comm; packagingAmount += e.pack; deliveryDiscountAmount += e.delivDiscount;
+
+    /* Имя берём из карточки, а для удалённых товаров — из самой записи,
+       чтобы их продажи не исчезали из отчёта за прошлый период. */
+    if(!bySku[h.sku]) bySku[h.sku] = {name: (p ? p.name : h.name) || h.sku, revenue:0, net:0};
+    bySku[h.sku].revenue += e.revenue;
+    bySku[h.sku].net += e.net;
+  });
+
+  const netProfit = grossProfit - taxAmount - commissionAmount - packagingAmount - deliveryDiscountAmount;
+  return {revenue, cogs, grossProfit, taxAmount, commissionAmount, packagingAmount, deliveryDiscountAmount, netProfit, bySku};
+}
+
+/* Одно кольцо со всеми показателями: выручка, себестоимость, валовая
+   прибыль, налог, комиссия, упаковка, скидка на доставку, реклама и чистая
+   прибыль — каждый пункт свой цвет, своё деление кольца. Нажали на деление
+   кольца или на карточку под ним — в центре кольца появляется сумма именно
+   по этому пункту за выбранный период. */
+var finRingSelected = null;
+var finRingSegments = [];
+
+function renderFinanceRing(f, adSpend, netProfitFinal){
+  /* Выручки в кольце нет намеренно: она равна сумме всех остальных долей,
+     поэтому занимала половину круга и сплющивала всё остальное. Главная
+     цифра здесь — чистая прибыль, она же в центре. */
+  const segments = [
+    {name:'Чистая прибыль', value:netProfitFinal, color:'#4A7DFF', icon:'i-check-circle'},
+    {name:'Себестоимость', value:f.cogs, color:'#2BBE85', icon:'i-box'},
+    {name:'Валовая прибыль', value:f.grossProfit, color:'#FFA35C', icon:'i-chart'},
+    {name:'Налог', value:f.taxAmount, color:'#E8598A', icon:'i-alert'},
+    {name:'Комиссия маркетплейса', value:f.commissionAmount, color:'#FFC94D', icon:'i-wallet'},
+    {name:'Упаковка', value:f.packagingAmount, color:'#2FBFAE', icon:'i-box'},
+    {name:'Скидка на доставку', value:f.deliveryDiscountAmount, color:'#8C7EF2', icon:'i-out'},
+    {name:'Реклама', value:adSpend, color:'#B57BFF', icon:'i-chart'},
+  ];
+  segments.forEach(s=>{ s.arcValue = Math.max(0, s.value); });
+
+  finRingSegments = segments;
+  finRingSelected = null;
+  showFinRingTotal();
+
+  const cx = 110, cy = 110, r = 92, sw = 20;
+  const circumference = 2*Math.PI*r;
+  const total = segments.reduce((s,x)=>s+x.arcValue,0);
+
+  let svgHtml = `<circle class="ring-track" cx="${cx}" cy="${cy}" r="${r}" stroke-width="${sw}"/>`;
+  if(total > 0){
+    let cumulative = 0;
+    segments.forEach((s,i)=>{
+      if(s.arcValue<=0) return;
+      const frac = s.arcValue/total;
+      const len = frac*circumference, gap = circumference-len, offset = -cumulative*circumference;
+      svgHtml += `<circle data-idx="${i}" onclick="selectFinRingSegment(${i})" cx="${cx}" cy="${cy}" r="${r}" stroke-width="${sw}" stroke="${s.color}" stroke-dasharray="${len.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/>`;
+      cumulative += frac;
+    });
+  }
+  document.getElementById('finRingSvg').innerHTML = svgHtml;
+
+  const grid = document.getElementById('finRingGrid');
+  const hint = document.getElementById('finRingHint');
+  /* Подсказка про нажатия на кольцо нужна, только когда по кольцу есть
+     что нажимать. */
+  if(hint) hint.style.display = (f.revenue <= 0) ? 'none' : '';
+  if(f.revenue <= 0){
+    grid.innerHTML = emptyLine('i-wallet','За этот период продаж не было');
+    return;
+  }
+  grid.innerHTML = segments.map((s,i)=>{
+    const pct = total>0 ? Math.round(s.arcValue/total*100) : 0;
+    return `<div class="cat-card" id="finSegCard${i}" style="--seg-color:${s.color}" onclick="selectFinRingSegment(${i})">
+      <div class="cat-share" style="background:${s.color}26;color:${s.color}">${pct}%</div>
+      <div class="cat-icon" style="background:${s.color}"><svg class="icon"><use href="#${s.icon}"/></svg></div>
+      <div class="cat-name">${escapeHtml(s.name)}</div>
+      <div class="cat-meta">доля кольца</div>
+      <div class="cat-amount">${Math.round(s.value)} ₽</div>
+    </div>`;
+  }).join('');
+}
+/* В центре кольца — чистая прибыль: ради неё сюда и заходят. */
+function showFinRingTotal(){
+  finRingSelected = null;
+  const main = finRingSegments[0];
+  document.getElementById('finRingAmount').textContent = (main ? Math.round(main.value) : 0) + ' ₽';
+  document.getElementById('finRingLabel').textContent = main ? main.name : 'Чистая прибыль';
+  document.querySelectorAll('#finRingGrid .cat-card').forEach(c=>c.classList.remove('selected'));
+  markPickedArc(-1);
+}
+function markPickedArc(i){
+  document.querySelectorAll('#finRingSvg circle[data-idx]').forEach(c=>{
+    c.classList.toggle('picked', Number(c.dataset.idx) === i);
+  });
+}
+function selectFinRingSegment(i){
+  const s = finRingSegments[i];
+  if(!s) return;
+  if(finRingSelected === i){ showFinRingTotal(); return; }
+  finRingSelected = i;
+  markPickedArc(i);
+  document.getElementById('finRingAmount').textContent = Math.round(s.value) + ' ₽';
+  document.getElementById('finRingLabel').textContent = s.name;
+  document.querySelectorAll('#finRingGrid .cat-card').forEach(c=>{
+    c.classList.toggle('selected', c.id === ('finSegCard'+i));
+  });
+}
+
+async function renderFinance(days, btnEl){
+  currentFinancePeriod = days;
+  const isCustom = typeof days === 'object' && days !== null;
+  const ids = {1:'finPeriodBtn1','yesterday':'finPeriodBtnYesterday',7:'finPeriodBtn7',30:'finPeriodBtn30'};
+  document.querySelectorAll('.period-seg button').forEach(b=>b.classList.remove('active'));
+  // при своём периоде подсвечивается сам календарь
+  const activeBtn = btnEl || document.getElementById(isCustom ? 'finPeriodBtnRange' : ids[days]);
+  if(activeBtn) activeBtn.classList.add('active');
+
+  const rangeLabel = document.getElementById('finCustomRangeLabel');
+  if(isCustom){
+    rangeLabel.style.display = 'block';
+    rangeLabel.textContent = 'Показан период: '+new Date(days.start).toLocaleDateString('ru-RU')+' – '+new Date(days.end).toLocaleDateString('ru-RU');
+  } else {
+    rangeLabel.style.display = 'none';
+  }
+
+  const f = await computeFinance(days);
+  const adSpend = await computeAdSpendForPeriod(days);
+  const netProfitFinal = f.netProfit - adSpend;
+  const round = (n)=> Math.round(n);
+
+  renderFinanceRing(f, adSpend, netProfitFinal);
+
+  const rows = Object.values(f.bySku).sort((a,b)=>b.net-a.net);
+  const list = document.getElementById('financeByProduct');
+  if(rows.length===0){
+    list.innerHTML = emptyLine('i-wallet','За этот период продаж не было');
+  } else {
+    list.innerHTML = rows.map(r=>`
+      <div class="row-item">
+        <div class="rmain"><div class="rname">${escapeHtml(r.name)}</div><div class="rmeta">выручка ${round(r.revenue)} ₽</div></div>
+        <span class="rval ${r.net>=0?'pos':'neg'}">${round(r.net)} ₽</span>
+      </div>`).join('');
+  }
+
+  await loadAdSpendToday();
+  await renderAdSpendLog();
+}
+
+/* Ключ дня по местному времени. Через toISOString получался бы день по
+   Гринвичу: ночью до трёх часов запись уходила бы во вчера. */
+function dateKeyOf(d){
+  const p = n=> String(n).padStart(2,'0');
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+function todayDateKey(){
+  return dateKeyOf(new Date());
+}
+
+/* ============================================================
+   РЕКЛАМА: ЕЖЕДНЕВНАЯ СУММА И ПОПРАВКИ
+   Тратят на рекламу обычно ровно и каждый день, поэтому вносить её
+   вручную по дню — лишняя работа, а забыл один раз, и отчёт врёт.
+   Вместо этого хранится ставка: сумма и день, с которого она в силе.
+   Поменяли — с этого дня считается новая, прошлые дни не трогаются.
+   Поправка за конкретный день перебивает ставку.
+   ============================================================ */
+function adRates(){
+  const list = Array.isArray(settings.adRates) ? settings.adRates.slice() : [];
+  return list.sort((a,b)=> String(a.from).localeCompare(String(b.from)));
+}
+function adRateForDay(key){
+  let value = 0;
+  for(const r of adRates()){
+    if(String(r.from) <= key) value = Number(r.amount) || 0;
+    else break;
+  }
+  return value;
+}
+function currentAdRate(){
+  const list = adRates();
+  return list.length ? list[list.length-1] : null;
+}
+
+async function computeAdSpendForPeriod(days){
+  const manual = await getAllLive('adspend');
+  const byDay = {};
+  manual.forEach(a=>{ byDay[a.dateKey] = Number(a.amount) || 0; });
+
+  let range;
+  if(days === null){
+    // «всё время»: от самой ранней записи или начала первой ставки
+    const keys = Object.keys(byDay).concat(adRates().map(r=> String(r.from))).sort();
+    if(!keys.length) return 0;
+    range = {start: new Date(keys[0] + 'T00:00:00').getTime(), end: Date.now()};
+  } else {
+    range = getPeriodRange(days);
+  }
+
+  let total = 0;
+  const day = new Date(range.start);
+  day.setHours(12,0,0,0);
+  const last = new Date(range.end);
+  /* предохранитель: перебор по дням не должен уходить в бесконечность,
+     если период задан странно */
+  for(let guard = 0; day <= last && guard < 4000; guard++){
+    const key = dateKeyOf(day);
+    total += (key in byDay) ? byDay[key] : adRateForDay(key);
+    day.setDate(day.getDate() + 1);
+  }
+  return total;
+}
+
+async function saveAdRate(){
+  const raw = document.getElementById('adRateInput').value;
+  const val = Number(raw);
+  if(raw === '' || isNaN(val) || val < 0){ toast('Введите сумму в рублях'); return; }
+
+  const today = todayDateKey();
+  const list = adRates().filter(r=> String(r.from) !== today);   // за сегодня ставка одна
+  list.push({from: today, amount: val});
+  settings.adRates = list;
+  await saveAppSettings();
+
+  renderAdRate();
+  toast('С сегодняшнего дня считается по ' + val + ' ₽');
+  await renderFinance(currentFinancePeriod, null);
+}
+
+function renderAdRate(){
+  const box = document.getElementById('adRateNow');
+  const input = document.getElementById('adRateInput');
+  if(!box) return;
+  const rate = currentAdRate();
+  if(rate){
+    if(input && document.activeElement !== input) input.value = rate.amount;
+    box.textContent = 'Сейчас: ' + Math.round(rate.amount) + ' ₽ в день, с '
+        + new Date(rate.from + 'T12:00:00').toLocaleDateString('ru-RU')
+        + '. Поменяете — новая сумма пойдёт с сегодняшнего дня, прошлые останутся как были.';
+  } else {
+    box.textContent = 'Сумма не задана — реклама считается только по поправкам за конкретные дни.';
+  }
+}
+/* День берём из поля, а не «сегодня»: расходы часто вносят на следующий
+   день, и без выбора даты они падали бы не в тот отчёт. */
+function selectedAdSpendKey(){
+  const el = document.getElementById('adSpendDate');
+  return (el && el.value) ? el.value : todayDateKey();
+}
+function markAdSpendDirty(){
+  const mark = document.getElementById('adSpendSavedMark');
+  if(mark) mark.style.display = 'none';
+}
+function showAdSpendSaved(saved){
+  const mark = document.getElementById('adSpendSavedMark');
+  if(mark) mark.style.display = saved ? 'inline' : 'none';
+}
+
+async function saveAdSpend(){
+  const raw = document.getElementById('adSpendInput').value;
+  const val = Number(raw);
+  if(raw === '' || isNaN(val) || val < 0){ toast('Введите сумму в рублях'); return; }
+
+  const key = selectedAdSpendKey();
+  const day = new Date(key + 'T12:00:00');
+  await put('adspend', {
+    dateKey: key,
+    dateDisplay: day.toLocaleDateString('ru-RU'),
+    timestamp: day.getTime(),
+    amount: val,
+    deletedAt: undefined      // день могли раньше «убрать» — возвращаем
+  });
+  showAdSpendSaved(true);
+  toast('Записано: ' + val + ' ₽ за ' + day.toLocaleDateString('ru-RU'));
+  await renderFinance(currentFinancePeriod, null);
+}
+
+/* Подставляем уже записанное за выбранный день — видно, что день закрыт,
+   и случайно вписать вторую сумму поверх не выйдет незаметно. */
+async function loadAdSpendForDate(){
+  const entry = await get('adspend', selectedAdSpendKey());
+  const input = document.getElementById('adSpendInput');
+  input.value = (entry && !entry.deletedAt) ? entry.amount : '';
+  showAdSpendSaved(Boolean(entry && !entry.deletedAt));
+}
+
+/* Убрать поправку — значит вернуть дню обычную ежедневную сумму. */
+async function clearAdSpendDay(){
+  const key = selectedAdSpendKey();
+  const entry = await get('adspend', key);
+  if(!entry || entry.deletedAt){ toast('За этот день поправки нет'); return; }
+  await softDelete('adspend', key);
+  document.getElementById('adSpendInput').value = '';
+  showAdSpendSaved(false);
+  toast('Поправка убрана — день считается по обычной сумме');
+  await renderFinance(currentFinancePeriod, null);
+}
+
+async function loadAdSpendToday(){
+  const dateEl = document.getElementById('adSpendDate');
+  if(dateEl && !dateEl.value) dateEl.value = todayDateKey();
+  renderAdRate();
+  await loadAdSpendForDate();
+}
+/* В журнале и смены ежедневной суммы, и поправки за отдельные дни —
+   иначе непонятно, откуда в отчёте взялась цифра. */
+async function renderAdSpendLog(){
+  const manual = await getAllLive('adspend');
+  const list = document.getElementById('adSpendLog');
+
+  const rateRows = adRates().slice().reverse().map(r=>({
+    kind: 'rate',
+    key: String(r.from),
+    title: 'По ' + Math.round(r.amount) + ' ₽ в день',
+    meta: 'с ' + new Date(r.from + 'T12:00:00').toLocaleDateString('ru-RU'),
+    amount: r.amount
+  }));
+  const dayRows = manual.slice().sort((a,b)=> String(b.dateKey).localeCompare(String(a.dateKey))).map(a=>({
+    kind: 'day',
+    key: a.dateKey,
+    title: a.dateDisplay || a.dateKey,
+    meta: 'поправка за день',
+    amount: a.amount
+  }));
+
+  const rows = rateRows.concat(dayRows);
+  if(!rows.length){
+    list.innerHTML = emptyLine('i-wallet','Расходы на рекламу пока не вносились');
+    return;
+  }
+
+  list.innerHTML = rows.slice(0,60).map(r=>`
+    <div class="row-item">
+      <div class="rmain">
+        <div class="rname">${escapeHtml(r.title)}</div>
+        <div class="rmeta">${escapeHtml(r.meta)}</div>
+      </div>
+      <div class="rside">
+        <span class="rval">${Math.round(r.amount)} ₽</span>
+        ${r.kind === 'day'
+          ? `<button class="icon-btn" onclick="deleteAdSpend('${escapeAttr(r.key)}')" aria-label="Убрать поправку"><svg class="icon"><use href="#i-trash"/></svg></button>`
+          : `<button class="icon-btn" onclick="deleteAdRate('${escapeAttr(r.key)}')" aria-label="Убрать сумму"><svg class="icon"><use href="#i-trash"/></svg></button>`}
+      </div>
+    </div>`).join('');
+}
+
+async function deleteAdRate(from){
+  if(!confirm('Убрать эту ежедневную сумму? Дни после неё будут считаться по предыдущей.')) return;
+  settings.adRates = adRates().filter(r=> String(r.from) !== String(from));
+  await saveAppSettings();
+  renderAdRate();
+  toast('Убрано');
+  await renderFinance(currentFinancePeriod, null);
+}
+async function deleteAdSpend(dateKey){
+  if(!confirm('Удалить запись о расходах на рекламу за этот день?')) return;
+  await softDelete('adspend', dateKey);
+  toast('Запись удалена');
+  await renderFinance(currentFinancePeriod, null);
+}
+
+/* ============================================================
+   ABC-АНАЛИЗ
+   ============================================================ */
+async function generateABC(){
+  const hist = await getAllLive('history');
+  const products = await getAllLive('products');
+  const bySku = {};
+  hist.filter(h=>h.type==='Расход').forEach(h=>{
+    const p = products.find(x=>x.sku===h.sku);
+    const e = opEconomics(h, p);
+    if(!e) return;
+    if(!bySku[h.sku]) bySku[h.sku] = {sku:h.sku, name:(p ? p.name : h.name) || h.sku, qty:0, revenue:0};
+    bySku[h.sku].qty += e.qty;
+    bySku[h.sku].revenue += e.revenue;
+  });
+  const rows = Object.values(bySku);
+  const totalRevenue = rows.reduce((s,r)=>s+r.revenue, 0);
+  rows.sort((a,b)=>b.revenue-a.revenue);
+  let cum=0;
+  rows.forEach(r=>{
+    const share = totalRevenue>0 ? r.revenue/totalRevenue*100 : 0;
+    cum += share;
+    r.share = share.toFixed(1); r.cum = cum.toFixed(1);
+    r.cls = cum<=80?'A':(cum<=95?'B':'C');
+  });
+  const list = document.getElementById('abcList');
+  if(rows.length===0){ list.innerHTML = emptyLine('i-chart','Нет продаж — анализ появится после расходов'); return; }
+  list.innerHTML = rows.map((r,idx)=>`
+    <div class="row-item">
+      <div class="rmain"><div class="rname">${idx+1}. ${escapeHtml(r.name)}</div><div class="rmeta">${r.qty} шт · ${Math.round(r.revenue)} ₽ · накопл. ${r.cum}%</div></div>
+      <span class="tag ${r.cls}">${r.cls}</span>
+    </div>`).join('');
+}
+
+function loadSettingsForm(){
+  document.getElementById('setCompany').value = settings.company;
+  document.getElementById('setLowStock').value = settings.lowStock;
+  document.getElementById('setSound').value = settings.sound?'1':'0';
+  document.getElementById('setBlockNeg').value = settings.blockNeg?'1':'0';
+  applyHeaderLogo();
+  renderSoundRows();
+}
+async function saveSettings(){
+  settings.company = document.getElementById('setCompany').value.trim() || 'Склад';
+  settings.lowStock = Number(document.getElementById('setLowStock').value)||5;
+  settings.sound = document.getElementById('setSound').value==='1';
+  settings.blockNeg = document.getElementById('setBlockNeg').value==='1';
+  await saveAppSettings();
+  document.getElementById('companyTitle').textContent = settings.company.toUpperCase();
+  toast('Настройки сохранены');
+  await renderStock();
+}
+
+function applyHeaderLogo(){
+  const src = settings.logoDataUrl || 'icon-192.png';
+  const headerImg = document.getElementById('headerLogoImg');
+  if(headerImg) headerImg.src = src;
+  const previewImg = document.getElementById('logoPreviewImg');
+  if(previewImg) previewImg.src = src;
+}
+function handleLogoUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){ toast('Выберите файл изображения'); e.target.value=''; return; }
+  if(file.size > 900*1024){ toast('Файл слишком большой — выберите картинку до 900 КБ'); e.target.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = async (ev)=>{
+    settings.logoDataUrl = ev.target.result;
+    await saveAppSettings();
+    applyHeaderLogo();
+    toast('Логотип обновлён');
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
+}
+async function resetLogo(){
+  delete settings.logoDataUrl;
+  await saveAppSettings();
+  applyHeaderLogo();
+  toast('Возвращён стандартный логотип');
+}
+
+function generateEAN13(){
+  let digits = '2' + String(Math.floor(Math.random()*10));
+  for(let i=0;i<10;i++) digits += Math.floor(Math.random()*10);
+  let sum = 0;
+  for(let i=0;i<12;i++){ sum += Number(digits[i]) * (i%2===0 ? 1 : 3); }
+  const check = (10 - (sum % 10)) % 10;
+  return digits + check;
+}
+async function generateBarcodeForModal(){
+  let code;
+  const existing = await getAllLive('products');
+  do { code = generateEAN13(); } while(existing.some(p=>p.barcode===code));
+  document.getElementById('pmBarcode').value = code;
+}
+
+async function printQRForModal(){
+  const name = document.getElementById('pmName').value.trim();
+  let barcode = document.getElementById('pmBarcode').value.trim();
+  if(!barcode){ toast('Сначала укажите или сгенерируйте штрихкод'); return; }
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>QR-код</title>
+    <style>body{font-family:Arial;padding:20px;} .label{width:220px;border:1px solid #999;border-radius:8px;padding:16px;text-align:center;}
+    .lname{font-weight:700;font-size:15px;margin-bottom:12px;} .qrbox{display:flex;justify-content:center;}
+    button{margin-bottom:16px;padding:8px 14px;font-size:14px;} @media print{button{display:none;}}</style>
+    </head><body><button onclick="window.print()">Печать</button><div class="label">
+    <div class="lname">${escapeHtml(name)}</div><div id="qr0" class="qrbox"></div>
+    </div>
+    <script src="${new URL('vendor/qrcode.min.js', location.href).href}"><\/script>
+    <script>new QRCode(document.getElementById('qr0'), {text:${JSON.stringify(barcode)}, width:160, height:160, correctLevel:QRCode.CorrectLevel.M});<\/script>
+    </body></html>`);
+  w.document.close();
+}
+
+async function exportBackup(){
+  const data = {
+    products: await getAllLive('products'),
+    history: await getAllLive('history'),
+    reports: await getAll('reports'),
+    adspend: await getAllLive('adspend'),
+    settings: settings,
+    exportedAt: new Date().toISOString()
+  };
+  downloadFile('sklad_backup_'+new Date().toISOString().slice(0,10)+'.json', JSON.stringify(data,null,2), 'application/json');
+}
+/* Импорт бэкапа.
+   Записи истории и отчётов нумеруются автоинкрементом, и раньше импорт в
+   НЕПУСТУЮ базу молча затирал существующие записи с теми же id — остатки
+   и отчёты после такого расходились с реальностью. Теперь спрашиваем
+   режим: «заменить» чистит хранилища и кладёт файл как есть, «добавить»
+   выдаёт импортируемым записям новые id и пропускает те, что уже есть. */
+function historySignature(h){
+  return [h.timestamp, h.sku, h.type, h.qty].join('|');
+}
+function importBackup(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev)=>{
+    try{
+      const data = JSON.parse(ev.target.result);
+      if(!data || typeof data !== 'object' || (!data.products && !data.history)){
+        toast('Это не похоже на бэкап «Склада»');
+        return;
+      }
+
+      const existingHistory = await getAllLive('history');
+      const hasData = existingHistory.length > 0 || (await getAllLive('products')).length > 0;
+
+      let replace = true;
+      if(hasData){
+        replace = confirm(
+          'В приложении уже есть данные.\n\n' +
+          'ОК — ЗАМЕНИТЬ: текущие товары, история, отчёты и реклама будут стёрты и заменены файлом.\n' +
+          'Отмена — ДОБАВИТЬ: записи из файла добавятся к текущим, дубликаты пропустятся.'
+        );
+      }
+
+      if(replace){
+        await clearStore('products'); await clearStore('history');
+        await clearStore('reports'); await clearStore('adspend');
+      }
+
+      if(data.products) for(const p of data.products) await put('products', p);
+
+      /* Записи из файла приводим к нынешнему виду: в бэкапах, снятых до
+         перехода на новую модель, нет ни uid, ни delta, ни отметки legacy.
+         Без этого сервер отвергает всю пачку («null value in column uid»),
+         а остаток считается по неполным данным. */
+      if(data.history){
+        if(replace){
+          for(const h of data.history){
+            const copy = Object.assign({}, h);
+            normalizeHistoryRow(copy);
+            await put('history', copy);
+          }
+        } else {
+          const seen = new Set(existingHistory.map(historySignature));
+          for(const h of data.history){
+            if(seen.has(historySignature(h))) continue;
+            seen.add(historySignature(h));
+            const copy = Object.assign({}, h);
+            delete copy.id;              // пусть база выдаст свой id
+            normalizeHistoryRow(copy);
+            await put('history', copy);
+          }
+        }
+      }
+
+      if(data.reports){
+        for(const r of data.reports){
+          const copy = Object.assign({}, r);
+          if(!replace) delete copy.id;
+          await put('reports', copy);
+        }
+      }
+
+      /* adspend лежит по ключу-дате, так что слияние здесь безопасно:
+         запись за день просто перезапишется значением из файла. */
+      if(data.adspend) for(const a of data.adspend) await put('adspend', a);
+
+      /* В бэкапе остаток лежит полем товара, а у нас он складывается из
+         операций. Записи из файла помечены справочными, поэтому сумма по
+         ним нулевая — закрепляем остаток из файла отдельной операцией,
+         иначе после импорта склад окажется пустым. */
+      if(data.products){
+        for(const p of data.products){
+          const wanted = Number(p.totalStock) || 0;
+          const current = await recalcStock(p.sku);
+          if(current === null) continue;
+          const diff = wanted - current;
+          if(diff !== 0){
+            const prod = await get('products', p.sku);
+            await logHistory('Начальный остаток', prod.barcode, prod, Math.abs(diff), {delta: diff});
+            await recalcStock(p.sku);
+          }
+        }
+      }
+
+      /* Звуки и логотип живут в настройках, но в бэкапах их может не быть
+         (файл снят старой версией). Поэтому настройки из файла не
+         затирают их целиком, а накладываются поверх. */
+      if(data.settings){
+        const keptSounds = settings.sounds;
+        const keptLogo = settings.logoDataUrl;
+        settings = Object.assign({}, data.settings, {key:'app'});
+        if(!settings.sounds && keptSounds) settings.sounds = keptSounds;
+        if(!settings.logoDataUrl && keptLogo) settings.logoDataUrl = keptLogo;
+        await saveAppSettings();
+        loadSettingsForm();
+      }
+
+      const inv = await getAll('inventory');
+      inventoryActive = inv.length > 0;
+      syncInvActionUI();
+      await renderStock(); await renderHistory(); await renderStats(); await renderReports(); await renderInvList();
+      await updateProductCountPill();
+      toast(replace ? 'Данные заменены из файла' : 'Данные добавлены к текущим');
+    }catch(err){ toast('Ошибка импорта: файл повреждён или имеет неверный формат'); }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+}
+async function wipeAll(){
+  if(!confirm('Удалить ВСЕ данные (товары, историю, отчёты, рекламу)? Это необратимо.')) return;
+  await clearStore('products'); await clearStore('history');
+  await clearStore('inventory'); await clearStore('reports'); await clearStore('adspend');
+  inventoryActive=false;
+  stopInvCamera();
+  syncInvActionUI();
+  await renderStock(); await renderHistory(); await renderStats(); await renderReports(); await renderInvList();
+  toast('Все данные удалены');
+}
+
+function downloadFile(filename, content, mime){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return String(s??'').replace(/'/g,"\\'"); }
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+</script>
+<!-- после основного кода: синхронизация опирается на его функции -->
+<script src="sync.js"></script>
+</body>
+</html>
