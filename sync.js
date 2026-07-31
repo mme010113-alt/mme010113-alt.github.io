@@ -113,6 +113,10 @@
   // ------------------------------------------------------------------
   const num = v => Number(v) || 0;
 
+  /* Насколько отматываем курсор назад при каждом приёме — запас на
+     расхождение часов между устройствами. */
+  const PULL_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
   const MAP = {
     products: {
       table: 'products',
@@ -188,6 +192,19 @@
   async function pushSettings(uid){
     const local = await window.get('settings', 'app');
     if(!local || !local.dirty) return 0;
+
+    /* На сервере может лежать версия свежее нашей — например, звуки
+       поменяли на телефоне, пока это устройство лежало выключенным.
+       Отправка «вслепую» затёрла бы их, поэтому уступаем и ждём приёма. */
+    const check = await client.from('app_settings').select('updated_at').eq('key','app').limit(1);
+    if(check.error) throw new Error('settings: ' + check.error.message);
+    const remoteTime = check.data && check.data.length ? num(check.data[0].updated_at) : 0;
+    if(remoteTime > num(local.updatedAt)){
+      local.dirty = 0;
+      await window.putRaw('settings', local);
+      return 0;
+    }
+
     const row = {
       user_id: uid, key: 'app',
       value: settingsToValue(local),
@@ -349,14 +366,21 @@
       sent += await pushSettings(user.id);
 
       const cursorRow = await window.get('settings','syncCursor');
-      const since = cursorRow ? num(cursorRow.value) : 0;
+      const saved = cursorRow ? num(cursorRow.value) : 0;
+
+      /* Время правки ставит само устройство, а часы у телефона и компьютера
+         сходятся не всегда. Запись, сделанная на отставшем устройстве, имеет
+         время «в прошлом» и при выборке строго после курсора не приехала бы
+         никогда — обмен тихо переставал возить часть данных. Поэтому берём
+         с запасом: лишнее всё равно отсеется сравнением времени правки. */
+      const since = Math.max(0, saved - PULL_WINDOW_MS);
 
       /* Курсор один на все таблицы, поэтому каждой отдаём ОДНО И ТО ЖЕ
          начальное значение. Если двигать его прямо в цикле, таблица,
          обработанная первой, утащит курсор вперёд, и записи остальных,
          сохранённые чуть раньше, будут отброшены как старые. */
       let received = 0;
-      let newCursor = since;
+      let newCursor = saved;
       const skus = new Set();
       for(const s of ['products','history','adspend']){
         const r = await pullStore(s, since);
@@ -365,6 +389,9 @@
         r.touchedSkus.forEach(x=> skus.add(x));
       }
       received += await pullSettings();
+      /* Одна запись с часами «из будущего» иначе увела бы курсор вперёд на
+         годы, и приём встал бы намертво. */
+      newCursor = Math.min(newCursor, Date.now());
       await window.put('settings', {key:'syncCursor', value: newCursor});
 
       // остаток пересчитывается только у затронутых товаров

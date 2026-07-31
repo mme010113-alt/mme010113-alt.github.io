@@ -1214,10 +1214,15 @@ function put(store,val,opts){
    её отдельно, потому что в хранилище settings лежат ещё и служебные
    записи (курсор обмена, отметка миграции), которым на сервере делать
    нечего. */
-async function saveAppSettings(){
+/* opts.initial — это не правка человека, а настройки по умолчанию у только
+   что установленного приложения. Отправлять их нельзя: войдя в общую
+   учётную запись, новое устройство затирало бы на сервере уже настроенные
+   звуки, логотип и название — именно так они и «слетали». */
+async function saveAppSettings(opts){
+  opts = opts || {};
   settings.key = 'app';
-  settings.updatedAt = Date.now();
-  settings.dirty = 1;
+  settings.updatedAt = opts.initial ? 0 : Date.now();
+  settings.dirty = opts.initial ? 0 : 1;
   return new Promise((res,rej)=>{
     const r = tx('settings','readwrite').put(settings);
     r.onsuccess = ()=> res(r.result);
@@ -1328,7 +1333,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   const splashStart = Date.now();
   await openDB();
   const s = await get('settings','app');
-  if(s) settings = s; else await saveAppSettings();
+  if(s) settings = s; else await saveAppSettings({initial:true});
   document.getElementById('companyTitle').textContent = settings.company.toUpperCase();
   applyHeaderLogo();
 
@@ -1355,10 +1360,54 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   /* Набрал количество — Enter, и товар принят. Без этого пришлось бы
      каждый раз тянуться к кнопке, а руки заняты сканером. */
   const prihodQtyInput = document.getElementById('prihodQtyInput');
-  prihodQtyInput.addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter'){ e.preventDefault(); confirmPrihodScan(); }
-    if(e.key === 'Escape'){ e.preventDefault(); cancelPrihodConfirm(); }
+  prihodQtyInput.addEventListener('keydown', async (e)=>{
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      /* Сканер печатает штрихкод и сам жмёт Enter. Раз символы шли в поле
+         количества — это не количество, а скан: код уходит туда, где ему
+         место. Иначе приход улетал на миллионы штук: в поле оказывался
+         сам штрихкод. */
+      const raw = scanTyped;
+      clearTimeout(typeFlushTimer);
+      scanTyped = '';
+      if(raw.length >= 6){
+        const split = await splitQtyAndCode(raw);
+        if(split.code){
+          if(split.qty) prihodQtyInput.value = split.qty;
+          handleScan(split.code);
+          return;
+        }
+      }
+      if(raw) typeIntoQty(raw);   // всё-таки набирали руками — дописываем
+      confirmPrihodScan();
+      return;
+    }
+    if(e.key === 'Escape'){
+      e.preventDefault(); clearTimeout(typeFlushTimer); scanTyped = '';
+      cancelPrihodConfirm(); return;
+    }
+
+    if(e.key.length === 1){
+      /* Ни один символ не попадает в поле сразу: сначала копим и только
+         через мгновение решаем, человек это набирает или сканер стреляет
+         очередью. Пауза незаметна на глаз, зато поле не портится. */
+      e.preventDefault();
+      scanTyped += e.key;
+      scanTypedAt = Date.now();
+      clearTimeout(typeFlushTimer);
+      typeFlushTimer = setTimeout(()=>{
+        const text = scanTyped; scanTyped = '';
+        if(text.length < 6) typeIntoQty(text);
+      }, SCAN_GAP_MS + 20);
+      return;
+    }
+    /* Backspace, стрелки и прочее — обычное поведение поля. */
+    clearTimeout(typeFlushTimer);
+    scanTyped = '';
+    qtyReplaceNext = false;
   });
+  /* Встал в поле — значит набирает количество заново. */
+  prihodQtyInput.addEventListener('focus', ()=>{ qtyReplaceNext = true; });
 
   const invScanInput = document.getElementById('invScanInput');
   invScanInput.addEventListener('keydown', (e)=>{
@@ -1769,18 +1818,81 @@ function updateModeUI(){
 }
 
 /* ---- приход: количество спрашиваем после скана ---- */
-let pendingPrihod = null;   // {product, barcode}
+var pendingPrihod = null;   // {product, barcode}
+
+/* Ручной сканер прикидывается клавиатурой: символы летят подряд, между
+   ними единицы миллисекунд, в конце — Enter. Человек так не печатает,
+   по этому и отличаем. */
+var scanTyped = '', scanTypedAt = 0, qtyBeforeTyping = '1', typeFlushTimer = null;
+const SCAN_GAP_MS = 40;
+
+/* Набранное человеком дописываем в поле сами — так же, как это сделал бы
+   браузер: начатое заново число заменяем, продолженное дописываем.
+   У числовых полей выделение недоступно (selectionStart всегда null),
+   поэтому «начало ввода» отмечаем сами: открыли панель, поставили курсор
+   или отсканировали ещё штуку. */
+var qtyReplaceNext = true;
+function typeIntoQty(text){
+  const inp = document.getElementById('prihodQtyInput');
+  const digits = String(text||'').replace(/\D/g, '');
+  if(!digits) return;
+  let selected = false;
+  try{ selected = inp.selectionStart !== null && inp.selectionStart !== inp.selectionEnd; }catch(e){}
+  const replacing = qtyReplaceNext || selected || !inp.value;
+  const next = (replacing ? digits : String(inp.value) + digits).replace(/^0+(?=\d)/, '');
+  inp.value = next.slice(0, 6);   // склад — не миллионы штук
+  qtyBeforeTyping = inp.value;
+  qtyReplaceNext = false;
+}
+
+/* Набранное руками количество может слипнуться со следующим сканом —
+   человек не всегда делает паузу. Поэтому ищем в конце ввода штрихкод,
+   который приложение знает: что осталось спереди, то и было количеством. */
+async function splitQtyAndCode(raw){
+  raw = String(raw||'').trim();
+  if(raw.length < 6) return {qty:'', code:''};
+  const all = await getAllLive('products');
+  const codes = {};
+  all.forEach(p=>{ codes[String(p.barcode).trim()] = true; });
+  for(let start = 0; start <= raw.length - 6; start++){
+    const tail = raw.slice(start);
+    if(codes[tail]){
+      const head = raw.slice(0, start);
+      return {qty: /^\d+$/.test(head) ? head : '', code: tail};
+    }
+  }
+  /* Знакомого кода нет. Длинную череду цифр всё равно считаем сканом —
+     это надёжнее, чем принять чужой штрихкод за количество и оприходовать
+     миллионы штук. */
+  return raw.length >= 8 ? {qty:'', code: raw} : {qty:'', code:''};
+}
 
 function showPrihodConfirm(p, barcode){
-  pendingPrihod = {product:p, barcode};
+  pendingPrihod = {product:p, barcode: String(barcode).trim()};
   document.getElementById('prihodConfirmName').textContent = p.name;
   document.getElementById('prihodConfirmStock').textContent = 'На складе сейчас: ' + (p.totalStock||0) + ' шт';
   const input = document.getElementById('prihodQtyInput');
   input.value = 1;
+  qtyBeforeTyping = '1';
+  qtyReplaceNext = true;
   document.getElementById('prihodConfirm').style.display = 'block';
   /* фокус сразу в количество и с выделением: сканер уже отработал,
      дальше человек просто набирает число и жмёт Enter */
   setTimeout(()=>{ input.focus(); input.select(); }, 40);
+}
+
+/* Отсканировали тот же товар ещё раз — значит принимаем ещё штуку.
+   Сколько раз провели сканером, столько штук и будет. */
+function bumpPrihodQty(){
+  const input = document.getElementById('prihodQtyInput');
+  const next = Math.max(1, Math.round(Number(input.value)||1) + 1);
+  input.value = next;
+  qtyBeforeTyping = String(next);
+  qtyReplaceNext = true;
+  document.getElementById('prihodConfirmStock').textContent =
+    'На складе сейчас: ' + (pendingPrihod && pendingPrihod.product.totalStock || 0) + ' шт · отсканировано ' + next;
+  playSound('Приход');
+  input.focus(); input.select();
 }
 function adjustPrihodQty(delta){
   const input = document.getElementById('prihodQtyInput');
@@ -1789,12 +1901,14 @@ function adjustPrihodQty(delta){
 }
 function cancelPrihodConfirm(){
   pendingPrihod = null;
+  scanTyped = '';
   document.getElementById('prihodConfirm').style.display = 'none';
   const scan = document.getElementById('scanInput');
   if(scan) scan.focus();
 }
 async function confirmPrihodScan(){
   if(!pendingPrihod) return;
+  scanTyped = '';
   const qty = Math.max(1, Math.round(Number(document.getElementById('prihodQtyInput').value)||1));
   const item = pendingPrihod;
   pendingPrihod = null;
@@ -1882,6 +1996,12 @@ async function handleScan(barcode){
      Расход уходит поштучно и применяется сразу. */
   if(currentMode === 'Приход'){
     lastScanSku = null; lastScanMode = null; lastScanCount = 0;
+    if(pendingPrihod){
+      /* Тот же товар — просто плюс штука. Другой — набранное по прежнему
+         записываем, чтобы не потерялось, и спрашиваем про новый. */
+      if(pendingPrihod.barcode === String(barcode).trim()){ bumpPrihodQty(); return; }
+      await confirmPrihodScan();
+    }
     showPrihodConfirm(p, barcode);
     return;
   }
@@ -2285,6 +2405,7 @@ async function editProduct(sku){
 }
 function closeProductModal(){ document.getElementById('productModalBg').classList.remove('show'); }
 function clearFormErrors(){
+  document.getElementById('errSku').textContent = 'Укажите SKU';
   document.getElementById('errSku').classList.remove('show');
   document.getElementById('errName').classList.remove('show');
   document.getElementById('pmSku').classList.remove('invalid');
@@ -2318,6 +2439,27 @@ async function saveProduct(){
   };
 
   const existing = await get('products', sku);
+  const isNew = !document.getElementById('pmSkuOriginal').value.trim();
+
+  /* Раньше новый товар с уже занятым SKU молча затирал старую карточку —
+     вместе с ценами и поставщиком, а история продаж оставалась висеть на
+     нём же и отчёты разъезжались. Теперь так сделать нельзя. */
+  if(isNew && existing && !existing.deletedAt){
+    document.getElementById('errSku').textContent = 'Этот SKU уже занят товаром «' + existing.name + '»';
+    document.getElementById('errSku').classList.add('show');
+    document.getElementById('pmSku').classList.add('invalid');
+    toast('Такой SKU уже есть на складе');
+    return;
+  }
+
+  /* Одинаковый штрихкод у двух товаров — скрытая беда: сканер всегда будет
+     попадать в один и тот же, а второй останется без движения. */
+  if(p.barcode){
+    const all = await getAllLive('products');
+    const twin = all.find(x=> String(x.barcode).trim() === p.barcode && x.sku !== sku);
+    if(twin && !confirm('Такой штрихкод уже у товара «'+twin.name+'».\n\nПри сканировании будет открываться он. Всё равно сохранить?')) return;
+  }
+
   const wantedStock = Number(document.getElementById('pmStock').value)||0;
   /* Остаток задаётся операцией, а не полем: иначе правка карточки на одном
      устройстве затёрла бы приходы и расходы, сделанные на другом. */
