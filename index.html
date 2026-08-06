@@ -199,22 +199,46 @@ section.active{display:block;animation:fade .18s ease;}
 .qty-pad button:active{background:var(--accent-soft);border-color:var(--accent-border);}
 .qty-pad button.aux{font-family:inherit;font-size:15px;color:var(--text-secondary);}
 
-/* своя экранная клавиатура — когда системную забрал сканер */
-.softkb{display:none;position:fixed;left:0;right:0;bottom:0;z-index:90;background:rgba(244,246,251,.97);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--border);padding:5px 4px calc(5px + env(safe-area-inset-bottom));box-shadow:0 -6px 24px rgba(40,44,64,.12);}
+/* Своя экранная клавиатура — когда системную забрал сканер.
+   Раскладка, размеры и цвета повторяют клавиатуру iPhone: серое поле,
+   белые клавиши со скруглением 5px и тенью снизу, серые служебные,
+   всплывающая подсказка над нажатой буквой. */
+.softkb{display:none;position:fixed;left:0;right:0;bottom:0;z-index:90;background:#D1D5DB;padding:6px 3px calc(4px + env(safe-area-inset-bottom));}
 .softkb.on{display:block;}
-.skb-bar{display:flex;align-items:center;justify-content:space-between;padding:0 6px 4px;}
-.skb-title{font-size:10.5px;color:var(--text-tertiary);letter-spacing:.04em;text-transform:uppercase;}
-.skb-bar button{width:34px;height:24px;border:0;background:transparent;color:var(--text-secondary);font-size:15px;font-weight:700;}
-.skb-row{display:flex;gap:4px;margin-bottom:5px;}
+.skb-bar{display:flex;align-items:center;justify-content:flex-end;height:20px;padding:0 6px 2px;}
+.skb-bar button{width:38px;height:20px;border:0;background:transparent;color:#4A4E57;font-size:15px;font-weight:700;line-height:1;padding:0;}
+.skb-row{display:flex;gap:6px;margin-bottom:11px;justify-content:center;}
 .skb-row:last-child{margin-bottom:0;}
-.skb-row button{flex:1 1 0;min-width:0;height:42px;border-radius:7px;background:#fff;border:1px solid var(--border);color:var(--text);font-size:16px;font-weight:500;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
-.skb-row button:active{background:var(--accent-soft);border-color:var(--accent-border);}
-.skb-row button.wide{flex:2.6 1 0;}
-.skb-row button.aux{font-size:12.5px;font-weight:600;color:var(--text-secondary);background:rgba(255,255,255,.6);}
-.skb-row button.aux.on{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent);}
-.skb-row button.go{background:var(--accent);border-color:var(--accent);color:#fff;font-size:13px;font-weight:600;}
-.skb-row.pad{max-width:270px;margin-left:auto;margin-right:auto;}
-.skb-row.pad button{height:46px;font-family:var(--font-mono);font-size:19px;font-weight:700;}
+.skb-row button{
+  flex:1 1 0;min-width:0;height:42px;border:0;border-radius:5px;padding:0;
+  background:#fff;color:#000;font-size:22px;font-weight:400;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 0 rgba(0,0,0,.28);
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.skb-row button:active{background:#E4E6EA;}
+/* служебные клавиши на iPhone серые, а нажатая — наоборот, белеет */
+.skb-row button.mod{background:#ADB3BE;font-size:15px;font-weight:500;}
+.skb-row button.mod:active,.skb-row button.mod.on{background:#fff;}
+.skb-row button.shift{flex:1.45 1 0;font-size:19px;}
+.skb-row button.back{flex:1.45 1 0;font-size:19px;}
+.skb-row button.space{flex:5 1 0;font-size:15px;font-weight:500;}
+.skb-row button.go{flex:2.2 1 0;background:var(--accent);color:#fff;font-size:15px;font-weight:600;}
+.skb-row button.go:active{background:var(--accent-strong);}
+.skb-row button.lang{flex:1.2 1 0;}
+/* второй ряд латиницы на iPhone сдвинут внутрь на половину клавиши */
+.skb-row.inset{padding:0 5%;}
+/* подсказка над нажатой буквой — та самая «пузырьком» */
+.skb-row button.ltr{position:relative;}
+.skb-row button.ltr:active::after{
+  content:attr(data-k);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);
+  margin-bottom:5px;min-width:170%;padding:9px 0;background:#fff;color:#000;
+  border-radius:9px;font-size:30px;line-height:1;text-align:center;
+  box-shadow:0 3px 8px rgba(0,0,0,.28);pointer-events:none;z-index:3;
+}
+/* цифровой пультик для числовых полей — крупные клавиши по центру */
+.skb-row.pad{max-width:280px;margin-left:auto;margin-right:auto;}
+.skb-row.pad button{height:46px;font-family:var(--font-mono);font-size:23px;font-weight:600;}
 
 /* header settings icon */
 .icon-btn-lg{width:38px;height:38px;border-radius:var(--r-full);background:rgba(255,255,255,.7);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);flex-shrink:0;}
@@ -1082,7 +1106,6 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
      клавиатура уже есть, и системную не показывает. Печатать нечем. -->
 <div class="softkb" id="softKb" aria-hidden="true">
   <div class="skb-bar">
-    <span class="skb-title" id="skbTitle">Клавиатура склада</span>
     <button type="button" onclick="skbHide()" aria-label="Скрыть клавиатуру">⌄</button>
   </div>
   <div id="skbRows"></div>
@@ -1974,26 +1997,50 @@ function focusForScanner(el){
 
    Показываем не всем подряд: сначала ждём, не появится ли системная. Если
    она пришла — окно заметно уменьшилось, и своя не нужна. */
-const SKB_RU = [
-  ['й','ц','у','к','е','н','г','ш','щ','з','х','ъ'],
-  ['ф','ы','в','а','п','р','о','л','д','ж','э'],
-  ['@shift','я','ч','с','м','и','т','ь','б','ю','@back']
-];
-const SKB_EN = [
-  ['q','w','e','r','t','y','u','i','o','p'],
-  ['a','s','d','f','g','h','j','k','l'],
-  ['@shift','z','x','c','v','b','n','m','@back']
-];
-const SKB_SYM = [
-  ['1','2','3','4','5','6','7','8','9','0'],
-  ['-','/',':',';','(',')','₽','&','@','"'],
-  ['.',',','?','!','*','+','=','%','@back']
-];
-const SKB_DIGITS = ['1','2','3','4','5','6','7','8','9','0'];
-const SKB_LABELS = {'@shift':'⇧','@back':'⌫','@space':'пробел','@lang':'EN','@sym':'123','@done':'Готово','@dot':'.'};
+/* Раскладки повторяют клавиатуру iPhone — те же ряды, та же длина рядов,
+   те же знаки на слоях «123» и «#+=». Цифрового ряда над буквами на iPhone
+   нет, цифры живут на отдельном слое. */
+const SKB_LAYOUTS = {
+  ru: [
+    ['й','ц','у','к','е','н','г','ш','щ','з','х','ъ'],
+    ['ф','ы','в','а','п','р','о','л','д','ж','э'],
+    ['@shift','я','ч','с','м','и','т','ь','б','ю','@back']
+  ],
+  en: [
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['@shift','z','x','c','v','b','n','m','@back']
+  ],
+  num: [
+    ['1','2','3','4','5','6','7','8','9','0'],
+    ['-','/',':',';','(',')','₽','&','@','"'],
+    ['@sym','.',',','?','!','\'','@back']
+  ],
+  sym: [
+    ['[',']','{','}','#','%','^','*','+','='],
+    ['_','\\','|','~','<','>','$','€','№','•'],
+    ['@num','.',',','?','!','\'','@back']
+  ]
+};
 
-var skbTarget = null, skbLayer = 'ru', skbShift = 0, skbNumMode = false;
+var skbTarget = null, skbLayer = 'ru', skbLetters = 'ru', skbShift = 0, skbNumMode = false;
+var skbShiftTapAt = 0;
 var skbBaseH = 0, skbProbe = null, skbHideTimer = null;
+
+function skbIsLetters(){ return skbLayer === 'ru' || skbLayer === 'en'; }
+function skbLabel(key){
+  switch(key){
+    case '@shift': return skbShift === 2 ? '⇪' : '⇧';
+    case '@back':  return '⌫';
+    case '@space': return skbLayer === 'en' ? 'space' : 'пробел';
+    case '@done':  return 'Готово';
+    case '@lang':  return skbLetters === 'en' ? 'РУС' : 'ENG';
+    case '@num':   return '123';
+    case '@sym':   return '#+=';
+    case '@abc':   return skbLetters === 'en' ? 'ABC' : 'АБВ';
+  }
+  return (skbShift && skbIsLetters()) ? key.toUpperCase() : key;
+}
 
 function skbViewportH(){ return window.visualViewport ? window.visualViewport.height : window.innerHeight; }
 
@@ -2032,13 +2079,29 @@ function skbIsNumeric(el){
 }
 
 function skbLayout(){
-  if(skbNumMode) return [['1','2','3'],['4','5','6'],['7','8','9'],['@back','0','@done']];
-  const rows = (skbLayer === 'sym') ? SKB_SYM.map(r=>r.slice())
-             : (skbLayer === 'en')  ? SKB_EN.map(r=>r.slice())
-             :                        SKB_RU.map(r=>r.slice());
-  if(skbLayer !== 'sym') rows.unshift(SKB_DIGITS.slice());
-  rows.push(['@sym','@lang','@space','@done']);
+  if(skbNumMode){
+    return [{k:['1','2','3'],c:'pad'},{k:['4','5','6'],c:'pad'},
+            {k:['7','8','9'],c:'pad'},{k:['@back','0','@done'],c:'pad'}];
+  }
+  const rows = SKB_LAYOUTS[skbLayer].map((r,i)=>({
+    k: r.slice(),
+    /* второй ряд латиницы на iPhone сдвинут внутрь — иначе выглядит чужим */
+    c: (skbLayer === 'en' && i === 1) ? 'inset' : ''
+  }));
+  rows.push({k:[ skbIsLetters() ? '@num' : '@abc', '@lang', '@space', '@done'], c:''});
   return rows;
+}
+
+function skbKeyClass(key){
+  switch(key){
+    case '@shift': return 'mod shift' + (skbShift ? ' on' : '');
+    case '@back':  return 'mod back';
+    case '@space': return 'space';
+    case '@done':  return 'go';
+    case '@lang':  return 'mod lang';
+    case '@num': case '@abc': case '@sym': return 'mod';
+  }
+  return 'ltr';
 }
 
 function skbRender(){
@@ -2047,19 +2110,14 @@ function skbRender(){
   host.innerHTML = '';
   skbLayout().forEach(row=>{
     const div = document.createElement('div');
-    div.className = 'skb-row' + (skbNumMode ? ' pad' : '');
-    row.forEach(key=>{
+    div.className = 'skb-row' + (row.c ? ' ' + row.c : '');
+    row.k.forEach(key=>{
       const b = document.createElement('button');
       b.type = 'button';
-      let label = SKB_LABELS[key] !== undefined ? SKB_LABELS[key] : key;
-      if(key === '@lang') label = (skbLayer === 'en') ? 'РУС' : 'ENG';
-      if(key === '@sym')  label = (skbLayer === 'sym') ? 'АБВ' : '123';
-      if(key.charAt(0) !== '@' && skbShift) label = key.toUpperCase();
+      const label = skbLabel(key);
       b.textContent = label;
-      if(key === '@space') b.className = 'wide';
-      else if(key === '@done') b.className = 'go';
-      else if(key.charAt(0) === '@') b.className = 'aux';
-      if(key === '@shift' && skbShift) b.className = 'aux on';
+      b.className = skbKeyClass(key);
+      if(b.className === 'ltr') b.dataset.k = label;   // для подсказки над клавишей
       b.addEventListener('click', ()=> skbKey(key));
       div.appendChild(b);
     });
@@ -2141,11 +2199,25 @@ function skbBackspace(){
 }
 
 function skbKey(key){
+  /* Залипание ловится только по двум ⇧ подряд: если между ними успели
+     нажать букву, это уже не двойное нажатие. */
+  if(key !== '@shift') skbShiftTapAt = 0;
   if(key === '@back'){ skbBackspace(); return; }
   if(key === '@space'){ skbInsert(' '); return; }
-  if(key === '@shift'){ skbShift = skbShift ? 0 : 1; skbRender(); return; }
-  if(key === '@lang'){ skbLayer = (skbLayer === 'en') ? 'ru' : 'en'; skbShift = 0; skbRender(); return; }
-  if(key === '@sym'){ skbLayer = (skbLayer === 'sym') ? 'ru' : 'sym'; skbShift = 0; skbRender(); return; }
+  if(key === '@shift'){
+    /* два быстрых нажатия — залипание, как на телефоне */
+    const now = Date.now();
+    skbShift = (now - skbShiftTapAt < 400) ? 2 : (skbShift ? 0 : 1);
+    skbShiftTapAt = now;
+    skbRender(); return;
+  }
+  if(key === '@lang'){
+    skbLetters = (skbLetters === 'en') ? 'ru' : 'en';
+    skbLayer = skbLetters; skbShift = 0; skbRender(); return;
+  }
+  if(key === '@num'){ skbLayer = 'num'; skbShift = 0; skbRender(); return; }
+  if(key === '@sym'){ skbLayer = 'sym'; skbShift = 0; skbRender(); return; }
+  if(key === '@abc'){ skbLayer = skbLetters; skbShift = 0; skbRender(); return; }
   if(key === '@done'){
     const el = skbTarget;
     skbHide();
@@ -2157,8 +2229,9 @@ function skbKey(key){
     }
     return;
   }
-  skbInsert(skbShift ? key.toUpperCase() : key);
-  if(skbShift){ skbShift = 0; skbRender(); }   // как на телефоне: заглавная одна
+  skbInsert((skbShift && skbIsLetters()) ? key.toUpperCase() : key);
+  /* как на телефоне: одиночный ⇧ даёт одну заглавную, залипание держится */
+  if(skbShift === 1){ skbShift = 0; skbRender(); }
 }
 
 var skbInited = false;
@@ -2188,10 +2261,12 @@ function initSoftKeyboard(){
     /* Ждём системную клавиатуру: пришла — окно заметно уменьшится, и своя
        не нужна. Не пришла — печатать нечем, показываем свою. */
     skbProbe = setTimeout(()=>{
+      /* Решаем по факту, а не по догадке: системная клавиатура заметно
+         поджимает окно. Поджала — своя не нужна, и неважно, подключён
+         сканер или нет. Android при сканере клавиатуру обычно показывает,
+         и лезть к нему со своей незачем. */
       const shrink = skbBaseH - skbViewportH();
-      /* Сканер уже печатал — значит для iOS клавиатура «есть» и своей
-         она не покажет, сколько ни жди. */
-      const needOwn = hwScannerSeen || (canProbe ? (shrink < 120) : false);
+      const needOwn = canProbe ? (shrink < 120) : hwScannerSeen;
       if(needOwn && skbTypable(document.activeElement)) skbShow(document.activeElement);
       else skbHide();
     }, 450);
