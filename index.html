@@ -191,6 +191,14 @@ section.active{display:block;animation:fade .18s ease;}
 .qty-stepper button{width:40px;height:40px;border-radius:var(--r-sm);background:rgba(255,255,255,.8);border:1px solid var(--border);color:var(--text);font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;}
 .qty-stepper input{width:72px;text-align:center;font-family:var(--font-mono);font-size:18px;font-weight:700;padding:8px 4px;}
 
+/* Свои цифры вместо клавиатуры телефона: iOS прячет экранную клавиатуру,
+   пока подключён сканер, а программный фокус её и вовсе закрывает. */
+.qty-pad{display:none;grid-template-columns:repeat(3,1fr);gap:6px;margin:var(--sp-3) 0;}
+.qty-pad.on{display:grid;}
+.qty-pad button{height:46px;border-radius:var(--r-sm);background:rgba(255,255,255,.85);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:19px;font-weight:700;display:flex;align-items:center;justify-content:center;-webkit-user-select:none;user-select:none;}
+.qty-pad button:active{background:var(--accent-soft);border-color:var(--accent-border);}
+.qty-pad button.aux{font-family:inherit;font-size:15px;color:var(--text-secondary);}
+
 /* header settings icon */
 .icon-btn-lg{width:38px;height:38px;border-radius:var(--r-full);background:rgba(255,255,255,.7);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);flex-shrink:0;}
 .icon-btn-lg .icon{width:19px;height:19px;}
@@ -564,6 +572,20 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
               <input type="number" id="prihodQtyInput" value="1" min="1" inputmode="numeric" enterkeyhint="done">
               <button onclick="adjustPrihodQty(1)" aria-label="Больше">+</button>
             </div>
+            <div class="qty-pad" id="prihodQtyPad">
+              <button onclick="padKey('prihodQtyInput','1')">1</button>
+              <button onclick="padKey('prihodQtyInput','2')">2</button>
+              <button onclick="padKey('prihodQtyInput','3')">3</button>
+              <button onclick="padKey('prihodQtyInput','4')">4</button>
+              <button onclick="padKey('prihodQtyInput','5')">5</button>
+              <button onclick="padKey('prihodQtyInput','6')">6</button>
+              <button onclick="padKey('prihodQtyInput','7')">7</button>
+              <button onclick="padKey('prihodQtyInput','8')">8</button>
+              <button onclick="padKey('prihodQtyInput','9')">9</button>
+              <button class="aux" onclick="padKey('prihodQtyInput','clear')" aria-label="Сбросить">C</button>
+              <button onclick="padKey('prihodQtyInput','0')">0</button>
+              <button class="aux" onclick="padKey('prihodQtyInput','back')" aria-label="Стереть">⌫</button>
+            </div>
             <div class="btn-row">
               <button class="btn ghost sm" onclick="cancelPrihodConfirm()">Отмена</button>
               <button class="btn primary sm" onclick="confirmPrihodScan()"><svg class="icon"><use href="#i-check"/></svg>Добавить</button>
@@ -583,8 +605,22 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
             <div class="ccstock" id="camConfirmStock"></div>
             <div class="qty-stepper">
               <button onclick="adjustCamQty(-1)" aria-label="Меньше">−</button>
-              <input type="number" id="camQtyInput" value="1" min="1">
+              <input type="number" id="camQtyInput" value="1" min="1" inputmode="numeric" enterkeyhint="done">
               <button onclick="adjustCamQty(1)" aria-label="Больше">+</button>
+            </div>
+            <div class="qty-pad" id="camQtyPad">
+              <button onclick="padKey('camQtyInput','1')">1</button>
+              <button onclick="padKey('camQtyInput','2')">2</button>
+              <button onclick="padKey('camQtyInput','3')">3</button>
+              <button onclick="padKey('camQtyInput','4')">4</button>
+              <button onclick="padKey('camQtyInput','5')">5</button>
+              <button onclick="padKey('camQtyInput','6')">6</button>
+              <button onclick="padKey('camQtyInput','7')">7</button>
+              <button onclick="padKey('camQtyInput','8')">8</button>
+              <button onclick="padKey('camQtyInput','9')">9</button>
+              <button class="aux" onclick="padKey('camQtyInput','clear')" aria-label="Сбросить">C</button>
+              <button onclick="padKey('camQtyInput','0')">0</button>
+              <button class="aux" onclick="padKey('camQtyInput','back')" aria-label="Стереть">⌫</button>
             </div>
             <div class="btn-row">
               <button class="btn ghost sm" onclick="cancelCamConfirm()">Отмена</button>
@@ -1347,6 +1383,20 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   syncInvActionUI();
   updateModeUI();
 
+  initQtyPads();
+
+  /* Физический сканер печатает очередью — символы идут через единицы
+     миллисекунд. Заметили такую очередь — значит сканер есть, и фокусом
+     можно распоряжаться как раньше. */
+  let lastKeyAt = 0, fastRun = 0;
+  document.addEventListener('keydown', (e)=>{
+    if(!e.key || e.key.length !== 1) return;
+    const now = Date.now();
+    fastRun = (now - lastKeyAt) <= SCAN_GAP_MS ? fastRun + 1 : 1;
+    lastKeyAt = now;
+    if(fastRun >= 4) hwScannerSeen = true;
+  }, true);
+
   const scanInput = document.getElementById('scanInput');
   scanInput.addEventListener('keydown', (e)=>{
     if(e.key==='Enter'){
@@ -1355,7 +1405,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       if(val){ handleScan(val); scanInput.value=''; }
     }
   });
-  scanInput.focus();
+  focusForScanner(scanInput);
 
   /* Набрал количество — Enter, и товар принят. Без этого пришлось бы
      каждый раз тянуться к кнопке, а руки заняты сканером. */
@@ -1646,7 +1696,7 @@ function showSection(name, btn){
   if(btn) btn.classList.add('active');
   closeChromeMenu();
   try{ window.scrollTo(0,0); }catch(e){}
-  if(name==='panel') document.getElementById('scanInput').focus();
+  if(name==='panel') focusForScanner(document.getElementById('scanInput'));
   if(name==='stock') renderStock();
   if(name==='inv') renderInvList();
   if(name==='history') renderHistory();
@@ -1810,7 +1860,7 @@ function setMode(m){
   // незакрытое подтверждение из прошлого режима только мешало бы
   cancelPrihodConfirm();
   updateModeUI();
-  document.getElementById('scanInput').focus();
+  focusForScanner(document.getElementById('scanInput'));
 }
 function updateModeUI(){
   document.getElementById('btnModePrihod').classList.toggle('on', currentMode==='Приход');
@@ -1832,6 +1882,51 @@ const SCAN_GAP_MS = 40;
    поэтому «начало ввода» отмечаем сами: открыли панель, поставили курсор
    или отсканировали ещё штуку. */
 var qtyReplaceNext = true;
+
+/* ---- количество на телефоне набирается своими кнопками ----
+   Экранная клавиатура для этого не годится: пока к iPhone подключён сканер,
+   iOS её вообще не показывает (сканер для системы — обычная клавиатура), а
+   программный focus() закрывает уже открытую. Человек как раз собирался
+   вписать штуки — и клавиатура пропадала. Поэтому на сенсорных устройствах
+   поле только показывает число, а вводят его кнопки под ним. */
+var touchQty = false;
+function initQtyPads(){
+  touchQty = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  if(!touchQty) return;
+  ['prihodQtyPad','camQtyPad'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.classList.add('on');
+  });
+  ['prihodQtyInput','camQtyInput'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.readOnly = true;  // системная клавиатура не откроется
+  });
+}
+function padKey(inputId, key){
+  const inp = document.getElementById(inputId);
+  if(!inp) return;
+  if(key === 'clear'){
+    inp.value = ''; qtyReplaceNext = true;
+  } else if(key === 'back'){
+    inp.value = String(inp.value).slice(0, -1); qtyReplaceNext = false;
+  } else {
+    const base = qtyReplaceNext ? '' : String(inp.value);
+    inp.value = (base + key).replace(/^0+(?=\d)/, '').slice(0, 6);   // склад — не миллионы штук
+    qtyReplaceNext = false;
+  }
+  if(inputId === 'prihodQtyInput'){
+    qtyBeforeTyping = inp.value;
+    clearTimeout(typeFlushTimer); scanTyped = '';
+  }
+}
+
+/* Фокус нужен только физическому сканеру — он печатает туда, где курсор.
+   Пока такого сканера не видели, на сенсорном экране фокус не трогаем. */
+var hwScannerSeen = false;
+function focusForScanner(el){
+  if(!el) return;
+  if(touchQty && !hwScannerSeen) return;
+  try{ el.focus(); }catch(e){}
+}
+
 function typeIntoQty(text){
   const inp = document.getElementById('prihodQtyInput');
   const digits = String(text||'').replace(/\D/g, '');
@@ -1875,10 +1970,15 @@ function showPrihodConfirm(p, barcode){
   input.value = 1;
   qtyBeforeTyping = '1';
   qtyReplaceNext = true;
-  document.getElementById('prihodConfirm').style.display = 'block';
+  const panel = document.getElementById('prihodConfirm');
+  panel.style.display = 'block';
+  /* с пультиком карточка стала выше — на маленьком экране «Добавить»
+     оказывалось за краем, поэтому подводим её к глазам сами */
+  if(touchQty) try{ panel.scrollIntoView({block:'center', behavior:'smooth'}); }catch(e){}
   /* фокус сразу в количество и с выделением: сканер уже отработал,
-     дальше человек просто набирает число и жмёт Enter */
-  setTimeout(()=>{ input.focus(); input.select(); }, 40);
+     дальше человек просто набирает число и жмёт Enter. На телефоне без
+     сканера фокус не трогаем — он бы только закрыл клавиатуру. */
+  setTimeout(()=>{ focusForScanner(input); if(document.activeElement === input){ try{ input.select(); }catch(e){} } }, 40);
 }
 
 /* Отсканировали тот же товар ещё раз — значит принимаем ещё штуку.
@@ -1892,19 +1992,20 @@ function bumpPrihodQty(){
   document.getElementById('prihodConfirmStock').textContent =
     'На складе сейчас: ' + (pendingPrihod && pendingPrihod.product.totalStock || 0) + ' шт · отсканировано ' + next;
   playSound('Приход');
-  input.focus(); input.select();
+  focusForScanner(input);
+  if(document.activeElement === input){ try{ input.select(); }catch(e){} }
 }
 function adjustPrihodQty(delta){
   const input = document.getElementById('prihodQtyInput');
   input.value = Math.max(1, Math.round(Number(input.value)||1) + delta);
-  input.focus();
+  qtyReplaceNext = true;
+  focusForScanner(input);
 }
 function cancelPrihodConfirm(){
   pendingPrihod = null;
   scanTyped = '';
   document.getElementById('prihodConfirm').style.display = 'none';
-  const scan = document.getElementById('scanInput');
-  if(scan) scan.focus();
+  focusForScanner(document.getElementById('scanInput'));
 }
 async function confirmPrihodScan(){
   if(!pendingPrihod) return;
@@ -1914,8 +2015,7 @@ async function confirmPrihodScan(){
   pendingPrihod = null;
   document.getElementById('prihodConfirm').style.display = 'none';
   await applyStockOperation(item.product, item.barcode, qty);
-  const scan = document.getElementById('scanInput');
-  if(scan) scan.focus();
+  focusForScanner(document.getElementById('scanInput'));
 }
 
 function switchInputTab(tab){
@@ -1924,7 +2024,7 @@ function switchInputTab(tab){
   document.getElementById('tabCameraBtn').classList.toggle('active', isCam);
   document.getElementById('scannerStage').style.display = isCam ? 'none' : 'block';
   document.getElementById('cameraStage').style.display = isCam ? 'block' : 'none';
-  if(isCam){ startCamera(); } else { stopCamera(); document.getElementById('scanInput').focus(); }
+  if(isCam){ startCamera(); } else { stopCamera(); focusForScanner(document.getElementById('scanInput')); }
 }
 
 let zxingReader = null, camOn = false;
@@ -2048,12 +2148,16 @@ function showCamConfirm(p, barcode){
   document.getElementById('camConfirmName').textContent = p.name;
   document.getElementById('camConfirmStock').textContent = 'На складе сейчас: '+p.totalStock+' шт';
   document.getElementById('camQtyInput').value = 1;
-  document.getElementById('camConfirm').style.display = 'block';
+  qtyReplaceNext = true;   // первая же цифра на пультике заменит единицу, а не допишется к ней
+  const panel = document.getElementById('camConfirm');
+  panel.style.display = 'block';
+  if(touchQty) try{ panel.scrollIntoView({block:'center', behavior:'smooth'}); }catch(e){}
 }
 function adjustCamQty(delta){
   const inp = document.getElementById('camQtyInput');
   let v = Math.max(1, Math.round(Number(inp.value)||1) + delta);
   inp.value = v;
+  qtyReplaceNext = true;
 }
 function cancelCamConfirm(){
   pendingCam = null;
