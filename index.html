@@ -824,7 +824,17 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         <div class="field"><label>Порог низкого остатка, шт</label><input type="number" id="setLowStock"></div>
         <div class="field"><label>Звук при сканировании</label><select id="setSound"><option value="1">Да</option><option value="0">Нет</option></select></div>
         <div class="field"><label>Запрет ухода в минус</label><select id="setBlockNeg"><option value="1">Да</option><option value="0">Нет</option></select></div>
+        <div class="field">
+          <label>Своя клавиатура на экране</label>
+          <select id="setKbMode">
+            <option value="auto">Сама, когда системной нет</option>
+            <option value="always">Всегда</option>
+            <option value="off">Не показывать</option>
+          </select>
+          <div class="t-caption" style="margin-top:6px;color:var(--text-tertiary);">Нужна, когда подключён сканер: iPhone считает его клавиатурой и свою не показывает.</div>
+        </div>
         <button class="btn primary" onclick="saveSettings()"><svg class="icon"><use href="#i-check"/></svg>Сохранить</button>
+        <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Версия приложения: <span id="appVersion">—</span></div>
       </div>
       <div class="card">
         <div class="card-head"><span class="t-eyebrow">Звуки сканирования</span></div>
@@ -1389,7 +1399,7 @@ async function renderStorageStatus(){
 let currentMode = 'Приход';
 /* var, а не let: так настройки видны как window.settings — это нужно
    вспомогательным скриптам и удобно при разборе проблем на устройстве */
-var settings = { key:'app', company:'Склад', lowStock:5, sound:true, blockNeg:true };
+var settings = { key:'app', company:'Склад', lowStock:5, sound:true, blockNeg:true, kbMode:'auto' };
 let inventoryActive = false;
 
 window.addEventListener('DOMContentLoaded', async ()=>{
@@ -1397,6 +1407,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   await openDB();
   const s = await get('settings','app');
   if(s) settings = s; else await saveAppSettings({initial:true});
+  refreshSoftKeyboardMode();
   document.getElementById('companyTitle').textContent = settings.company.toUpperCase();
   applyHeaderLogo();
 
@@ -2129,8 +2140,13 @@ function skbKey(key){
   if(skbShift){ skbShift = 0; skbRender(); }   // как на телефоне: заглавная одна
 }
 
+var skbInited = false;
 function initSoftKeyboard(){
-  if(!touchQty) return;   // на компьютере есть настоящая клавиатура
+  if(skbInited) return;
+  /* «Всегда» должно работать и там, где мы приняли устройство за компьютер:
+     если человек включил клавиатуру руками, значит она ему нужна. */
+  if(!touchQty && (settings.kbMode !== 'always')) return;
+  skbInited = true;
   skbBindGuards();
   skbBaseH = skbViewportH();
   const canProbe = !!window.visualViewport;
@@ -2141,12 +2157,22 @@ function initSoftKeyboard(){
     clearTimeout(skbProbe);
     if(el && el.closest && el.closest('#softKb')) return;   // жмут по самой клавиатуре
     if(!skbTypable(el)){ skbHide(); return; }
+    const mode = settings.kbMode || 'auto';
+    if(mode === 'off') return;
+    if(mode === 'always'){ skbShow(el); return; }
+    /* Уже на экране — просто переводим на новое поле, без паузы и мигания:
+       раз системной клавиатуры не было секунду назад, нет её и сейчас. */
+    const kb = document.getElementById('softKb');
+    if(kb && kb.classList.contains('on')){ skbShow(el); return; }
     /* Ждём системную клавиатуру: пришла — окно заметно уменьшится, и своя
        не нужна. Не пришла — печатать нечем, показываем свою. */
     skbProbe = setTimeout(()=>{
       const shrink = skbBaseH - skbViewportH();
-      const needOwn = canProbe ? (shrink < 120) : hwScannerSeen;
+      /* Сканер уже печатал — значит для iOS клавиатура «есть» и своей
+         она не покажет, сколько ни жди. */
+      const needOwn = hwScannerSeen || (canProbe ? (shrink < 120) : false);
       if(needOwn && skbTypable(document.activeElement)) skbShow(document.activeElement);
+      else skbHide();
     }, 450);
   });
 
@@ -2165,6 +2191,22 @@ function initSoftKeyboard(){
   window.addEventListener('orientationchange', ()=>{
     setTimeout(()=>{ if(!skbTarget) skbBaseH = skbViewportH(); skbPlace(); }, 400);
   });
+}
+
+/* Пультик и клавиатура поднимаются сразу, не дожидаясь базы: если в данных
+   что-то сломается и загрузка не дойдёт до конца, печатать всё равно нужно. */
+function bootInput(){
+  try{ initQtyPads(); }catch(e){}
+  try{ initSoftKeyboard(); }catch(e){}
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootInput);
+else bootInput();
+
+/* Настройку прочитали позже базы — если там «Всегда», клавиатуру надо
+   поднять и на устройстве, которое мы приняли за компьютер. */
+function refreshSoftKeyboardMode(){
+  if(settings.kbMode === 'off'){ skbHide(); return; }
+  try{ initSoftKeyboard(); }catch(e){}
 }
 
 function typeIntoQty(text){
@@ -4150,15 +4192,33 @@ function loadSettingsForm(){
   document.getElementById('setLowStock').value = settings.lowStock;
   document.getElementById('setSound').value = settings.sound?'1':'0';
   document.getElementById('setBlockNeg').value = settings.blockNeg?'1':'0';
+  document.getElementById('setKbMode').value = settings.kbMode || 'auto';
   applyHeaderLogo();
   renderSoundRows();
+  showAppVersion();
+}
+
+/* Версию берём из имени кеша — его поднимает выкладка, так что это ровно
+   то, что сейчас лежит на устройстве. Иначе не понять, дошли правки или нет. */
+async function showAppVersion(){
+  const el = document.getElementById('appVersion');
+  if(!el) return;
+  let v = 'без кеша';
+  try{
+    const keys = await caches.keys();
+    const k = keys.filter(x=>x.indexOf('sklad-')===0).sort().pop();
+    if(k) v = k.replace('sklad-','');
+  }catch(e){}
+  el.textContent = v;
 }
 async function saveSettings(){
   settings.company = document.getElementById('setCompany').value.trim() || 'Склад';
   settings.lowStock = Number(document.getElementById('setLowStock').value)||5;
   settings.sound = document.getElementById('setSound').value==='1';
   settings.blockNeg = document.getElementById('setBlockNeg').value==='1';
+  settings.kbMode = document.getElementById('setKbMode').value || 'auto';
   await saveAppSettings();
+  refreshSoftKeyboardMode();
   document.getElementById('companyTitle').textContent = settings.company.toUpperCase();
   toast('Настройки сохранены');
   await renderStock();
