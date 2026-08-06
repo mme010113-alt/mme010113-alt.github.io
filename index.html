@@ -2622,7 +2622,7 @@ async function startInventory(){
   }
   inventoryActive = true;
   syncInvActionUI();
-  document.getElementById('invScanInput').focus();
+  focusForScanner(document.getElementById('invScanInput'));
   toast('Инвентаризация начата: '+all.length+' позиций');
   await renderInvList();
 }
@@ -2663,7 +2663,7 @@ function switchInvInputTab(tab){
   document.getElementById('invTabCameraBtn').classList.toggle('active', isCam);
   document.getElementById('invScannerStage').style.display = isCam ? 'none' : 'block';
   document.getElementById('invCameraStage').style.display = isCam ? 'block' : 'none';
-  if(isCam){ startInvCamera(); } else { stopInvCamera(); document.getElementById('invScanInput').focus(); }
+  if(isCam){ startInvCamera(); } else { stopInvCamera(); focusForScanner(document.getElementById('invScanInput')); }
 }
 async function startInvCamera(){
   if(invCamOn) return;
