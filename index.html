@@ -1998,10 +1998,31 @@ var skbBaseH = 0, skbProbe = null, skbHideTimer = null;
 function skbViewportH(){ return window.visualViewport ? window.visualViewport.height : window.innerHeight; }
 
 function skbTypable(el){
-  if(!el || el.disabled || el.readOnly) return false;
+  if(!el || el.disabled) return false;
+  /* Поле, которое мы сами закрыли от системной клавиатуры, остаётся своим:
+     печатать в него можно, просто нашими кнопками. Чужое «только чтение» —
+     это количество со своим пультиком, туда лезть не надо. */
+  if(el.readOnly && el.dataset.skbRo !== '1') return false;
   if(el.tagName === 'TEXTAREA') return true;
   if(el.tagName !== 'INPUT') return false;
   return ['text','search','tel','number','password','email','url'].indexOf((el.type||'text').toLowerCase()) >= 0;
+}
+
+/* «Всегда» значит «печатаем только своей». Если просто показать её поверх,
+   iOS поднимет и свою — на экране окажутся две клавиатуры сразу. Поэтому в
+   этом режиме поля переводятся в «только чтение»: курсор в них ставится,
+   а системная клавиатура не открывается. */
+function skbApplyAlways(){
+  const on = touchQty && ((settings.kbMode || 'auto') === 'always');
+  document.querySelectorAll('input, textarea').forEach(el=>{
+    if(el.dataset.skbRo === '1'){
+      if(!on){ el.readOnly = false; delete el.dataset.skbRo; }
+      return;
+    }
+    if(!on || !skbTypable(el)) return;
+    el.readOnly = true;
+    el.dataset.skbRo = '1';
+  });
 }
 function skbIsNumeric(el){
   const t = (el.type||'').toLowerCase();
@@ -2198,6 +2219,7 @@ function initSoftKeyboard(){
 function bootInput(){
   try{ initQtyPads(); }catch(e){}
   try{ initSoftKeyboard(); }catch(e){}
+  try{ skbApplyAlways(); }catch(e){}
 }
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootInput);
 else bootInput();
@@ -2205,8 +2227,9 @@ else bootInput();
 /* Настройку прочитали позже базы — если там «Всегда», клавиатуру надо
    поднять и на устройстве, которое мы приняли за компьютер. */
 function refreshSoftKeyboardMode(){
-  if(settings.kbMode === 'off'){ skbHide(); return; }
   try{ initSoftKeyboard(); }catch(e){}
+  try{ skbApplyAlways(); }catch(e){}
+  if((settings.kbMode || 'auto') === 'off') skbHide();
 }
 
 function typeIntoQty(text){
