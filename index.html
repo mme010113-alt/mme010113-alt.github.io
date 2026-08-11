@@ -205,8 +205,11 @@ section.active{display:block;animation:fade .18s ease;}
    всплывающая подсказка над нажатой буквой. */
 .softkb{display:none;position:fixed;left:0;right:0;bottom:0;z-index:90;background:#D1D5DB;padding:6px 3px calc(4px + env(safe-area-inset-bottom));}
 .softkb.on{display:block;}
-.skb-bar{display:flex;align-items:center;justify-content:flex-end;height:20px;padding:0 6px 2px;}
-.skb-bar button{width:38px;height:20px;border:0;background:transparent;color:#4A4E57;font-size:15px;font-weight:700;line-height:1;padding:0;}
+.skb-bar{display:flex;align-items:center;height:26px;padding:0 6px 3px;gap:4px;}
+.skb-bar .skb-gap{flex:1;}
+.skb-bar button{width:38px;height:23px;border:0;background:transparent;color:#4A4E57;font-size:15px;font-weight:700;line-height:1;padding:0;}
+.skb-bar button.skb-arrow{width:44px;height:23px;background:rgba(255,255,255,.65);border-radius:5px;font-size:19px;}
+.skb-bar button.skb-arrow:active{background:#fff;}
 .skb-row{display:flex;gap:6px;margin-bottom:11px;justify-content:center;}
 .skb-row:last-child{margin-bottom:0;}
 .skb-row button{
@@ -1107,7 +1110,12 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
 <!-- Своя клавиатура: пока к телефону подключён сканер, iOS считает, что
      клавиатура уже есть, и системную не показывает. Печатать нечем. -->
 <div class="softkb" id="softKb" aria-hidden="true">
+  <!-- Пока своя клавиатура на экране, поле закрыто от системной, а значит
+       лупой и пробелом курсор не подвинуть. Двигаем этими стрелками. -->
   <div class="skb-bar">
+    <button type="button" class="skb-arrow" onclick="skbMove(-1)" aria-label="Курсор влево">‹</button>
+    <button type="button" class="skb-arrow" onclick="skbMove(1)" aria-label="Курсор вправо">›</button>
+    <span class="skb-gap"></span>
     <button type="button" onclick="skbHide(true)" aria-label="Скрыть клавиатуру">⌄</button>
   </div>
   <div id="skbRows"></div>
@@ -2213,6 +2221,24 @@ function skbInsert(text){
   if(!done) el.value = String(el.value) + text;   // у number-полей курсора нет
   el.dispatchEvent(new Event('input', {bubbles:true}));
 }
+/* Курсор по буквам. На iPhone его двигают лупой или пробелом, но обе
+   возможности принадлежат системной клавиатуре — а она в это время
+   закрыта. Без стрелок опечатку в середине слова не поправить: приходится
+   стирать строку до неё. */
+function skbMove(delta){
+  const el = skbTarget;
+  if(!el) return;
+  if(document.activeElement !== el){ try{ el.focus({preventScroll:true}); }catch(e){} }
+  try{
+    const len = String(el.value).length;
+    const s = el.selectionStart, e = el.selectionEnd;
+    if(s === null) return;                       // у числовых полей курсора нет
+    /* Есть выделение — стрелка ставит курсор к его краю, как везде. */
+    let pos = (s !== e) ? (delta < 0 ? s : e) : Math.min(len, Math.max(0, s + delta));
+    el.setSelectionRange(pos, pos);
+  }catch(err){}
+}
+
 function skbBackspace(){
   const el = skbTarget;
   if(!el) return;
@@ -2642,8 +2668,12 @@ function unlockAudio(){
   }
   if(audioCtx.state === 'suspended'){ audioCtx.resume().catch(()=>{}); }
 }
-document.addEventListener('pointerdown', unlockAudio, {once:true});
-document.addEventListener('keydown', unlockAudio, {once:true});
+/* Без {once:true}: iOS усыпляет звук, когда приложение уходит в фон или
+   просто лежит без дела, и одной разблокировки на весь запуск не хватает —
+   отсюда «сигнал срабатывает через раз». Вызов дешёвый, зовём на каждое
+   касание и на каждый символ сканера. */
+document.addEventListener('pointerdown', unlockAudio);
+document.addEventListener('keydown', unlockAudio);
 /* Часть браузеров выдаёт постоянное хранилище только после жеста
    пользователя — поэтому пробуем ещё раз при первом касании. */
 document.addEventListener('pointerdown', ()=>{ renderStorageStatus(); }, {once:true});
@@ -2652,13 +2682,23 @@ function beep(freq, startSec, durSec, gainVal){
   if(!settings.sound) return;
   unlockAudio();
   if(!audioCtx) return;
-  try{
-    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
-    o.frequency.value = freq; g.gain.value = gainVal;
-    const t0 = audioCtx.currentTime + startSec;
-    o.start(t0); o.stop(t0 + durSec);
-  }catch(e){}
+  const fire = ()=>{
+    try{
+      const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.frequency.value = freq; g.gain.value = gainVal;
+      const t0 = audioCtx.currentTime + startSec;
+      o.start(t0); o.stop(t0 + durSec);
+    }catch(e){}
+  };
+  /* Пробуждение звука — дело не мгновенное. Раньше сигнал ставился в
+     очередь спящему звуку и пропадал: у спящего не идут часы, и время
+     начала оказывалось в прошлом. Отсюда «звук через раз». */
+  if(audioCtx.state === 'suspended'){
+    audioCtx.resume().then(fire).catch(()=>{});
+  } else {
+    fire();
+  }
 }
 
 /* ============================================================
@@ -2684,11 +2724,15 @@ function playCustomSound(key){
   try{
     let entry = soundPlayers[key];
     if(!entry || entry.src !== src){
-      entry = {src, audio: new Audio(src)};
+      /* Одного проигрывателя мало: сканеру часто прилетает два товара
+         подряд, а повторный запуск ещё звучащего звука браузер молча
+         отбрасывает — сигнал пропускался. Держим три по кругу. */
+      entry = {src, pool:[new Audio(src), new Audio(src), new Audio(src)], next:0};
       soundPlayers[key] = entry;
     }
-    const player = entry.audio;
-    player.currentTime = 0;
+    const player = entry.pool[entry.next];
+    entry.next = (entry.next + 1) % entry.pool.length;
+    try{ player.currentTime = 0; }catch(e){}
     const p = player.play();
     if(p && p.catch) p.catch(()=>{});
     return true;

@@ -1,15 +1,18 @@
 ﻿/* Версию бампаем при КАЖДОЙ выкладке — иначе у установленных приложений
    останется старый кеш, и правки увидят не сразу. */
-const CACHE_NAME = 'sklad-v22';
+const CACHE_NAME = 'sklad-v23';
 
 /* Всё, что нужно приложению для полностью автономной работы: оболочка,
    иконки, сканер штрихкодов, генератор QR и шрифты. Раньше сканер, QR и
    шрифты грузились с CDN и в кеш не попадали (кросс-доменные ответы
    приходят opaque, со status 0) — без сети приложение оставалось без
-   камеры и без печати этикеток. */
+   камеры и без печати этикеток.
+
+   Страница лежит под './' и НЕ под './index.html': Cloudflare отвечает на
+   /index.html перенаправлением на /, а ответ с перенаправлением нельзя ни
+   положить в кеш, ни отдать в ответ на переход. */
 const ASSETS = [
   './',
-  './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
@@ -40,8 +43,41 @@ const ASSETS = [
   './fonts/SpaceGrotesk-700-latin.woff2'
 ];
 
+/* Ответ, доехавший через перенаправление, помечен redirected. Такой ответ
+   cache.put отвергает, а Safari на переходе показывает белый экран с
+   «Response served by service worker has redirections». Пересобираем его
+   начисто — тело и заголовки те же, метки перенаправления нет. */
+async function cleanResponse(res) {
+  if (!res || !res.redirected) return res;
+  const body = await res.blob();
+  return new Response(body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers: res.headers
+  });
+}
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+  e.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    /* Кладём по одному, а не addAll: раньше один сбойный ответ валил всю
+       установку целиком, новая версия не вставала, и на устройстве
+       продолжала работать старая. */
+    /* Качаем разом, а кладём по очереди: Chrome отвергает одновременные
+       записи в один кеш («Entry already exists»), и при параллельной
+       раскладке в кеше не оставалось вообще ничего. */
+    const loaded = await Promise.all(ASSETS.map(async (url) => {
+      try {
+        const res = await fetch(url, { cache: 'reload', redirect: 'follow' });
+        if (res && res.ok) return { url, res: await cleanResponse(res) };
+      } catch (err) { /* нет файла или нет сети — переживём */ }
+      return null;
+    }));
+    for (const item of loaded) {
+      if (!item) continue;
+      try { await cache.put(item.url, item.res); } catch (err) { /* один файл не повод падать */ }
+    }
+  })());
   self.skipWaiting();
 });
 
@@ -62,19 +98,27 @@ self.addEventListener('fetch', (e) => {
 
   /* Саму страницу берём из сети и только при её отсутствии — из кеша.
      Иначе после выкладки правок пользователь видел бы старую версию
-     до второго запуска. */
+     до второго запуска. Запрос делаем по адресу, а не по самому объекту
+     запроса: у переходов режим перенаправления «manual», и ответ на них
+     приходит непрозрачным. */
   if (e.request.mode === 'navigate' || e.request.destination === 'document') {
-    e.respondWith(
-      fetch(e.request)
-        .then((res) => {
-          if (res && res.status === 200) {
-            const copy = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy));
-          }
-          return res;
-        })
-        .catch(() => caches.match(e.request).then((c) => c || caches.match('./index.html')))
-    );
+    e.respondWith((async () => {
+      try {
+        const res = await cleanResponse(
+          await fetch(e.request.url, { redirect: 'follow', credentials: 'same-origin' })
+        );
+        if (res && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('./', copy)).catch(() => {});
+        }
+        return res;
+      } catch (err) {
+        const cache = await caches.open(CACHE_NAME);
+        return (await cache.match('./'))
+            || (await cache.match(e.request))
+            || Response.error();
+      }
+    })());
     return;
   }
 
@@ -83,10 +127,12 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then((cached) => {
       const fetchPromise = fetch(e.request)
-        .then((res) => {
+        .then(async (res) => {
           if (res && res.status === 200) {
-            const copy = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy));
+            const fresh = await cleanResponse(res);
+            const copy = fresh.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy)).catch(() => {});
+            return fresh;
           }
           return res;
         })
