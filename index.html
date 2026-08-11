@@ -599,8 +599,8 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         <div id="scannerStage">
           <div class="scanbox">
             <div class="beamline"></div>
-            <input type="text" id="scanInput" placeholder="Штрихкод…" autocomplete="off" inputmode="numeric" enterkeyhint="done">
-            <div class="hint">Наведите сканер или введите вручную + Enter</div>
+            <input type="text" id="scanInput" placeholder="Штрихкод или SKU…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+            <div class="hint">Наведите сканер или наберите штрихкод либо SKU и нажмите «Готово»</div>
           </div>
 
           <!-- В приходе количество спрашивается после скана: партию в сто
@@ -742,8 +742,8 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         <div id="invScannerStage">
           <div class="scanbox">
             <div class="beamline"></div>
-            <input type="text" id="invScanInput" placeholder="Штрихкод…" autocomplete="off" inputmode="numeric" enterkeyhint="done">
-            <div class="hint">Наведите сканер или введите вручную + Enter</div>
+            <input type="text" id="invScanInput" placeholder="Штрихкод или SKU…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+            <div class="hint">Наведите сканер или наберите штрихкод либо SKU и нажмите «Готово»</div>
           </div>
         </div>
 
@@ -855,7 +855,7 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
             <option value="always">Всегда</option>
             <option value="off">Не показывать</option>
           </select>
-          <div class="t-caption" style="margin-top:6px;color:var(--text-tertiary);">Нужна, когда подключён сканер: iPhone считает его клавиатурой и свою не показывает.</div>
+          <div class="t-caption" style="margin-top:6px;color:var(--text-tertiary);">Нужна, когда подключён сканер: iPhone считает его клавиатурой и свою не показывает. Настройка своя на каждом устройстве и на другие не уезжает.</div>
         </div>
         <button class="btn primary" onclick="saveSettings()"><svg class="icon"><use href="#i-check"/></svg>Сохранить</button>
         <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Версия приложения: <span id="appVersion">—</span></div>
@@ -1106,7 +1106,7 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
      клавиатура уже есть, и системную не показывает. Печатать нечем. -->
 <div class="softkb" id="softKb" aria-hidden="true">
   <div class="skb-bar">
-    <button type="button" onclick="skbHide()" aria-label="Скрыть клавиатуру">⌄</button>
+    <button type="button" onclick="skbHide(true)" aria-label="Скрыть клавиатуру">⌄</button>
   </div>
   <div id="skbRows"></div>
 </div>
@@ -1422,7 +1422,15 @@ async function renderStorageStatus(){
 let currentMode = 'Приход';
 /* var, а не let: так настройки видны как window.settings — это нужно
    вспомогательным скриптам и удобно при разборе проблем на устройстве */
-var settings = { key:'app', company:'Склад', lowStock:5, sound:true, blockNeg:true, kbMode:'auto' };
+var settings = { key:'app', company:'Склад', lowStock:5, sound:true, blockNeg:true };
+
+/* Клавиатура настраивается для каждого устройства отдельно и в общие
+   настройки не попадает: на iPhone со сканером своя нужна, а на Android
+   с той же учётной записью — нет, там системная показывается сама. */
+function skbMode(){
+  try{ return localStorage.getItem('skladKbMode') || 'auto'; }catch(e){ return 'auto'; }
+}
+function setSkbMode(v){ try{ localStorage.setItem('skladKbMode', v || 'auto'); }catch(e){} }
 let inventoryActive = false;
 
 window.addEventListener('DOMContentLoaded', async ()=>{
@@ -1460,13 +1468,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   }, true);
 
   const scanInput = document.getElementById('scanInput');
-  scanInput.addEventListener('keydown', (e)=>{
-    if(e.key==='Enter'){
-      e.preventDefault();
-      const val = scanInput.value.trim();
-      if(val){ handleScan(val); scanInput.value=''; }
-    }
-  });
+  wireScanInput(scanInput, handleScan);
   focusForScanner(scanInput);
 
   /* Набрал количество — Enter, и товар принят. Без этого пришлось бы
@@ -1521,26 +1523,13 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   /* Встал в поле — значит набирает количество заново. */
   prihodQtyInput.addEventListener('focus', ()=>{ qtyReplaceNext = true; });
 
-  const invScanInput = document.getElementById('invScanInput');
-  invScanInput.addEventListener('keydown', (e)=>{
-    if(e.key==='Enter'){
-      e.preventDefault();
-      const val = invScanInput.value.trim();
-      if(val){ handleInventoryScan(val); invScanInput.value=''; }
-    }
-  });
+  wireScanInput(document.getElementById('invScanInput'), handleInventoryScan);
 
-  const scanCaptureInput = document.getElementById('scanCaptureInput');
-  scanCaptureInput.addEventListener('keydown', (e)=>{
-    if(e.key==='Enter'){
-      e.preventDefault();
-      const val = scanCaptureInput.value.trim();
-      if(val && scannerCaptureCallback){
-        scannerCaptureCallback(val);
-        toast('Штрихкод считан: '+val);
-        closeScannerCapture();
-      }
-    }
+  wireScanInput(document.getElementById('scanCaptureInput'), (val)=>{
+    if(!scannerCaptureCallback) return;
+    scannerCaptureCallback(val);
+    toast('Штрихкод считан: '+val);
+    closeScannerCapture();
   });
 
   ['pmSku','pmName'].forEach(id=>{
@@ -2060,7 +2049,7 @@ function skbTypable(el){
    этом режиме поля переводятся в «только чтение»: курсор в них ставится,
    а системная клавиатура не открывается. */
 function skbApplyAlways(){
-  const on = touchQty && ((settings.kbMode || 'auto') === 'always');
+  const on = touchQty && (skbMode() === 'always');
   document.querySelectorAll('input, textarea').forEach(el=>{
     if(el.dataset.skbRo === '1'){
       if(!on){ el.readOnly = false; delete el.dataset.skbRo; }
@@ -2131,9 +2120,15 @@ function skbBindGuards(){
   const kb = document.getElementById('softKb');
   if(!kb) return;
   kb.addEventListener('mousedown', (e)=>{ e.preventDefault(); });
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize', skbPlace);
-    window.visualViewport.addEventListener('scroll', skbPlace);
+  const vv = window.visualViewport;
+  if(vv){
+    vv.addEventListener('scroll', skbPlace);
+    vv.addEventListener('resize', ()=>{
+      skbPlace();
+      /* Системная клавиатура могла прийти позже нашей — тогда на экране
+         оказались бы две сразу. Окно заметно поджалось — свою убираем. */
+      if(kb.classList.contains('on') && (skbBaseH - vv.height) >= 120) skbHide();
+    });
   }
 }
 
@@ -2159,9 +2154,13 @@ function skbShow(el){
   skbPlace();
   setTimeout(()=>{ try{ el.scrollIntoView({block:'center', behavior:'smooth'}); }catch(e){} }, 80);
 }
-function skbHide(){
+/* Убрали крестиком — значит убрали: пока курсор в том же поле, сама
+   больше не выскакивает. Перешли в другое поле — снова можно. */
+var skbDismissed = null;
+function skbHide(byHand){
   const kb = document.getElementById('softKb');
   if(!kb) return;
+  if(byHand) skbDismissed = skbTarget;
   kb.classList.remove('on');
   kb.setAttribute('aria-hidden', 'true');
   skbTarget = null;
@@ -2239,7 +2238,7 @@ function initSoftKeyboard(){
   if(skbInited) return;
   /* «Всегда» должно работать и там, где мы приняли устройство за компьютер:
      если человек включил клавиатуру руками, значит она ему нужна. */
-  if(!touchQty && (settings.kbMode !== 'always')) return;
+  if(!touchQty && skbMode() !== 'always') return;
   skbInited = true;
   skbBindGuards();
   skbBaseH = skbViewportH();
@@ -2251,7 +2250,9 @@ function initSoftKeyboard(){
     clearTimeout(skbProbe);
     if(el && el.closest && el.closest('#softKb')) return;   // жмут по самой клавиатуре
     if(!skbTypable(el)){ skbHide(); return; }
-    const mode = settings.kbMode || 'auto';
+    if(el !== skbDismissed) skbDismissed = null;   // другое поле — запрет снят
+    if(el === skbDismissed) return;
+    const mode = skbMode();
     if(mode === 'off') return;
     if(mode === 'always'){ skbShow(el); return; }
     /* Уже на экране — просто переводим на новое поле, без паузы и мигания:
@@ -2304,7 +2305,7 @@ else bootInput();
 function refreshSoftKeyboardMode(){
   try{ initSoftKeyboard(); }catch(e){}
   try{ skbApplyAlways(); }catch(e){}
-  if((settings.kbMode || 'auto') === 'off') skbHide();
+  if(skbMode() === 'off') skbHide();
 }
 
 function typeIntoQty(text){
@@ -2425,7 +2426,7 @@ async function startCamera(){
         const p = await findProductByBarcode(text);
         if(!p){
           playErrorSound();
-          showStatus('Штрихкод не найден: '+text+'. Проверьте, что товар добавлен на «Складе».', 'error');
+          showStatus('Не найден: '+text+'. Ни штрихкода, ни SKU такого нет на «Складе».', 'error');
           return;
         }
         showCamConfirm(p, text);
@@ -2456,10 +2457,42 @@ function closeScannerCapture(){
   scannerCaptureCallback = null;
 }
 
+/* Сканер шлёт штрихкод, а руками удобнее набрать SKU — он короче и его
+   видно на карточке товара. Поэтому ищем и так, и так: сначала по
+   штрихкоду (его присылает сканер), потом по SKU. */
+/* Сканер для системы — клавиатура, и обычно он просто печатает в поле.
+   Но в режиме «Всегда» поле закрыто от системной клавиатуры, и тогда
+   символы в value не попадают — сканирование бы отвалилось. Поэтому
+   собираем их сами и на Enter берём то, что есть: сначала поле, а если
+   оно пустое — накопленное. */
+function wireScanInput(input, onScan){
+  if(!input) return;
+  let buf = '', at = 0;
+  input.addEventListener('keydown', (e)=>{
+    const now = Date.now();
+    if(now - at > 1000) buf = '';   // долгая пауза — прежний набор не в счёт
+    at = now;
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      const val = (input.value.trim() || buf.trim());
+      buf = '';
+      if(val){ onScan(val); input.value = ''; }
+      return;
+    }
+    if(e.key === 'Escape'){ buf = ''; return; }
+    if(e.key === 'Backspace'){ buf = buf.slice(0, -1); return; }
+    if(e.key && e.key.length === 1) buf += e.key;
+  });
+}
+
 async function findProductByBarcode(code){
   const all = await getAllLive('products');
   code = String(code).trim();
-  return all.find(p=> String(p.barcode).trim() === code) || null;
+  if(!code) return null;
+  const byBarcode = all.find(p=> String(p.barcode).trim() === code);
+  if(byBarcode) return byBarcode;
+  const low = code.toLowerCase();
+  return all.find(p=> String(p.sku).trim().toLowerCase() === low) || null;
 }
 
 let lastScanSku = null, lastScanMode = null, lastScanCount = 0;
@@ -2468,7 +2501,7 @@ async function handleScan(barcode){
   const p = await findProductByBarcode(barcode);
   if(!p){
     playErrorSound();
-    showStatus('Штрихкод не найден: '+barcode+'. Проверьте, что товар добавлен на «Складе».', 'error');
+    showStatus('Не найден: '+barcode+'. Ни штрихкода, ни SKU такого нет на «Складе».', 'error');
     lastScanSku = null; lastScanCount = 0;
     return;
   }
@@ -2872,7 +2905,9 @@ async function editProduct(sku){
   if(!p) return;
   document.getElementById('productModalTitle').textContent='Изменить товар';
   document.getElementById('pmSkuOriginal').value=p.sku;
-  document.getElementById('pmSku').value=p.sku; document.getElementById('pmSku').disabled=true;
+  /* SKU можно переименовать: история переезжает на новый код вместе
+     с товаром, см. renameSku(). Раньше поле было просто заблокировано. */
+  document.getElementById('pmSku').value=p.sku; document.getElementById('pmSku').disabled=false;
   document.getElementById('pmName').value=p.name;
   document.getElementById('pmCategory').value=p.category||'';
   document.getElementById('pmSupplier').value=p.supplier||'';
@@ -2904,6 +2939,21 @@ function validateProductForm(){
   document.getElementById('pmName').classList.toggle('invalid', !name);
   return Boolean(sku && name);
 }
+/* Смена SKU — это переезд, а не переименование поля: код товара лежит в
+   ключе карточки, в каждой строке истории и в списке инвентаризации.
+   Новая карточка к этому моменту уже сохранена, здесь переносим остальное
+   и гасим старую. Все правки помечаются как несохранённые, поэтому
+   на другие устройства переезд уедет целиком. */
+async function renameSku(oldSku, newSku){
+  const rows = await getAll('history');
+  for(const h of rows){
+    if(String(h.sku) === String(oldSku)){ h.sku = newSku; await put('history', h); }
+  }
+  const inv = await get('inventory', oldSku);
+  if(inv){ inv.sku = newSku; await put('inventory', inv); await del('inventory', oldSku); }
+  await softDelete('products', oldSku);
+}
+
 async function saveProduct(){
   if(!validateProductForm()){ toast('Заполните обязательные поля'); return; }
   const sku = document.getElementById('pmSku').value.trim();
@@ -2922,8 +2972,27 @@ async function saveProduct(){
     updatedAt: Date.now(),
   };
 
-  const existing = await get('products', sku);
-  const isNew = !document.getElementById('pmSkuOriginal').value.trim();
+  const originalSku = document.getElementById('pmSkuOriginal').value.trim();
+  const isNew = !originalSku;
+  const renaming = !isNew && originalSku !== sku;
+  /* При переименовании остаток и историю берём у прежней карточки —
+     иначе товар вышел бы из правки с нулём и без продаж. */
+  const existing = await get('products', renaming ? originalSku : sku);
+
+  if(renaming){
+    const taken = await get('products', sku);
+    if(taken && !taken.deletedAt){
+      document.getElementById('errSku').textContent = 'Этот SKU уже занят товаром «' + taken.name + '»';
+      document.getElementById('errSku').classList.add('show');
+      document.getElementById('pmSku').classList.add('invalid');
+      toast('Такой SKU уже есть на складе');
+      return;
+    }
+    const moved = (await getAll('history')).filter(h=> String(h.sku) === originalSku && !h.deletedAt).length;
+    if(!confirm('Сменить SKU: «' + originalSku + '» → «' + sku + '»?\n\n'
+              + 'Вместе с товаром переедет вся его история — ' + moved + ' записей.\n'
+              + 'Старый код освободится.')) return;
+  }
 
   /* Раньше новый товар с уже занятым SKU молча затирал старую карточку —
      вместе с ценами и поставщиком, а история продаж оставалась висеть на
@@ -2940,7 +3009,7 @@ async function saveProduct(){
      попадать в один и тот же, а второй останется без движения. */
   if(p.barcode){
     const all = await getAllLive('products');
-    const twin = all.find(x=> String(x.barcode).trim() === p.barcode && x.sku !== sku);
+    const twin = all.find(x=> String(x.barcode).trim() === p.barcode && x.sku !== sku && x.sku !== originalSku);
     if(twin && !confirm('Такой штрихкод уже у товара «'+twin.name+'».\n\nПри сканировании будет открываться он. Всё равно сохранить?')) return;
   }
 
@@ -2949,6 +3018,7 @@ async function saveProduct(){
      устройстве затёрла бы приходы и расходы, сделанные на другом. */
   p.totalStock = existing ? (Number(existing.totalStock)||0) : 0;
   await put('products', p);
+  if(renaming) await renameSku(originalSku, sku);
 
   const diff = wantedStock - p.totalStock;
   if(diff !== 0){
@@ -3026,8 +3096,10 @@ function showInvStatus(msg, ok){
 }
 async function handleInventoryScan(barcode){
   const all = await getAll('inventory');
-  const item = all.find(i=> String(i.barcode).trim()===String(barcode).trim());
-  if(!item){ playErrorSound(); showInvStatus('Штрихкод не в списке инвентаризации: '+barcode, false); return; }
+  const code = String(barcode).trim(), low = code.toLowerCase();
+  const item = all.find(i=> String(i.barcode).trim() === code)
+            || all.find(i=> String(i.sku).trim().toLowerCase() === low);   // руками удобнее по SKU
+  if(!item){ playErrorSound(); showInvStatus('Не в списке инвентаризации: '+barcode, false); return; }
   item.factQty += 1;
   await put('inventory', item);
   showInvStatus('Посчитано: '+item.name+' ('+item.factQty+' шт)', true);
@@ -4290,7 +4362,7 @@ function loadSettingsForm(){
   document.getElementById('setLowStock').value = settings.lowStock;
   document.getElementById('setSound').value = settings.sound?'1':'0';
   document.getElementById('setBlockNeg').value = settings.blockNeg?'1':'0';
-  document.getElementById('setKbMode').value = settings.kbMode || 'auto';
+  document.getElementById('setKbMode').value = skbMode();
   applyHeaderLogo();
   renderSoundRows();
   showAppVersion();
@@ -4314,7 +4386,7 @@ async function saveSettings(){
   settings.lowStock = Number(document.getElementById('setLowStock').value)||5;
   settings.sound = document.getElementById('setSound').value==='1';
   settings.blockNeg = document.getElementById('setBlockNeg').value==='1';
-  settings.kbMode = document.getElementById('setKbMode').value || 'auto';
+  setSkbMode(document.getElementById('setKbMode').value);
   await saveAppSettings();
   refreshSoftKeyboardMode();
   document.getElementById('companyTitle').textContent = settings.company.toUpperCase();
