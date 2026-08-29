@@ -1551,6 +1551,9 @@ var settings = { key:'app', company:'Склад', lowStock:5, sound:true, blockN
    настройки не попадает: на iPhone со сканером своя нужна, а на Android
    с той же учётной записью — нет, там системная показывается сама. */
 function skbMode(){
+  /* Партнёр не сканирует — своя экранная клавиатура ему только мешает.
+     Всегда системная клавиатура телефона. Настройку устройства не трогаем. */
+  if(typeof isEmployee === 'function' && isEmployee()) return 'off';
   try{ return localStorage.getItem('skladKbMode') || 'auto'; }catch(e){ return 'auto'; }
 }
 function setSkbMode(v){ try{ localStorage.setItem('skladKbMode', v || 'auto'); }catch(e){} }
@@ -3722,7 +3725,10 @@ async function deleteSelectedHistoryWithCorrection(){
 async function deleteHistoryEntry(id){
   const entry = await get('history', id);
   if(!entry) return;
-  if(!confirm('Удалить запись «'+entry.name+'» ('+entry.date+' '+entry.time+')? Остаток товара будет пересчитан так, будто этой операции не было.')) return;
+  const extra = (entry.type === 'Расход')
+    ? '\n\nНачисление партнёру по этой продаже тоже уберётся — у него оно пропадёт при синхронизации.'
+    : '';
+  if(!confirm('Удалить запись «'+entry.name+'» ('+entry.date+' '+entry.time+')? Остаток товара будет пересчитан так, будто этой операции не было.'+extra)) return;
 
   /* Остаток больше не нужно «откручивать» руками: он считается по
      операциям, поэтому достаточно убрать запись и пересчитать. */
@@ -5144,6 +5150,9 @@ async function applyRoleUI(){
   }
 
   if(!emp) renderMembersCard();
+
+  // партнёру — только системная клавиатура телефона
+  try{ refreshSoftKeyboardMode(); }catch(e){}
 
   // перерисовать открытый раздел под новую роль
   if(active){
