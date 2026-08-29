@@ -908,7 +908,8 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         <div class="card-head"><span class="t-eyebrow">Партнёры</span></div>
         <div class="t-caption" style="margin-bottom:8px;color:var(--text-tertiary);">Дайте партнёру этот код. Он ставит приложение → на входе жмёт «Войти как партнёр» → вводит код и придумывает свой логин с паролем. Партнёр видит склад, историю и баланс (сколько вы ему должны), но ничего не редактирует.</div>
         <div class="field-row">
-          <input type="text" id="inviteCodeView" readonly style="font-family:var(--font-mono);font-size:18px;letter-spacing:.14em;text-align:center;text-transform:uppercase;">
+          <div id="inviteCodeView" onclick="copyInviteCode()" role="button" tabindex="-1"
+               style="flex:1;min-width:0;padding:11px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:rgba(255,255,255,.6);font-family:var(--font-mono);font-size:20px;font-weight:700;letter-spacing:.18em;text-align:center;text-transform:uppercase;cursor:pointer;-webkit-user-select:all;user-select:all;">—</div>
           <button class="btn ghost sm" style="width:auto;white-space:nowrap;" onclick="copyInviteCode()">Копировать</button>
         </div>
         <button class="btn ghost" style="margin-top:8px;" onclick="rotateInvite()"><svg class="icon"><use href="#i-x"/></svg>Сменить код</button>
@@ -1165,7 +1166,7 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
     <div id="empFields" hidden>
       <div class="auth-field">
         <label for="inviteCodeInput">Код приглашения</label>
-        <input type="text" id="inviteCodeInput" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="6 символов от владельца">
+        <input type="text" id="inviteCodeInput" name="inviteCode" autocomplete="one-time-code" autocorrect="off" autocapitalize="characters" spellcheck="false" inputmode="text" enterkeyhint="go" placeholder="6 символов от владельца">
       </div>
       <div class="auth-field">
         <label for="empNameInput">Ваше имя</label>
@@ -5165,10 +5166,14 @@ function toggleEmployeeLogin(){
   if(note) note.style.display = on ? 'none' : 'block';
 }
 
-/* ---- карточка «Сотрудники» в настройках (владелец) ---- */
-function renderMembersCard(){
+/* ---- карточка «Партнёры» в настройках (владелец) ---- */
+async function renderMembersCard(){
   const codeEl = document.getElementById('inviteCodeView');
-  if(codeEl && window.Sync && Sync.inviteCode) codeEl.value = Sync.inviteCode() || '—';
+  if(codeEl && window.Sync && Sync.inviteCode){
+    let code = Sync.inviteCode();
+    if(!code && Sync.ensureInviteCode){ try{ code = await Sync.ensureInviteCode(); }catch(e){} }
+    codeEl.textContent = code || '—';
+  }
   const box = document.getElementById('membersList');
   if(!box) return;
   const members = window.__wsMembers || [];
@@ -5185,11 +5190,15 @@ function renderMembersCard(){
       </div>
     </div>`).join('');
 }
-function copyInviteCode(){
-  const code = (window.Sync && Sync.inviteCode) ? Sync.inviteCode() : '';
-  if(!code){ toast('Код ещё не готов'); return; }
+async function copyInviteCode(){
+  let code = (window.Sync && Sync.inviteCode) ? Sync.inviteCode() : '';
+  if(!code && window.Sync && Sync.ensureInviteCode){ try{ code = await Sync.ensureInviteCode(); }catch(e){} }
+  if(!code){ toast('Код появится после входа и связи с сервером'); return; }
+  const el = document.getElementById('inviteCodeView');
+  if(el) el.textContent = code;
   try{
-    navigator.clipboard.writeText(code).then(()=> toast('Код скопирован'), ()=> toast('Код: ' + code));
+    await navigator.clipboard.writeText(code);
+    toast('Код скопирован: ' + code);
   }catch(e){ toast('Код: ' + code); }
 }
 async function rotateInvite(){
