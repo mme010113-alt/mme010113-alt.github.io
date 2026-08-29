@@ -1035,7 +1035,7 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         <div id="balByDay"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="balByTierCard">
         <div class="card-head"><span class="t-eyebrow">Продажи по ставкам</span></div>
         <div id="balByTier"></div>
       </div>
@@ -5126,6 +5126,8 @@ async function applyRoleUI(){
   // Баланс: партнёру без инструментов, свой заголовок
   const ot = document.getElementById('balOwnerTools');
   if(ot) ot.hidden = emp;
+  const tierCard = document.getElementById('balByTierCard');
+  if(tierCard) tierCard.hidden = emp;   // «Продажи по ставкам» — только владельцу
   const bh = document.getElementById('balHead');
   const bs = document.getElementById('balSub');
   if(bh) bh.textContent = emp ? 'Мои выплаты' : 'Баланс партнёров';
