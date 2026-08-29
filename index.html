@@ -522,6 +522,37 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
 @media (prefers-reduced-motion:reduce){
   .spinner{animation:none;}
 }
+
+/* ============================================================
+   ЛИСТ ЭТИКЕТОК ДЛЯ ПЕЧАТИ (без всплывающих окон)
+   ============================================================ */
+body.labels-open{overflow:hidden;}
+#labelSheetOverlay{position:fixed;inset:0;z-index:95;background:#fff;overflow-y:auto;-webkit-overflow-scrolling:touch;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+#labelSheetBar{position:sticky;top:0;z-index:1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  padding:10px 12px;background:#f2f2f2;border-bottom:1px solid #ccc;}
+#labelSheetBar .t-caption{color:#555;}
+.label-sheet{display:flex;flex-wrap:wrap;align-content:flex-start;}
+.label-sheet.single{justify-content:center;padding:16px;}
+.label-sheet.single .lbl{width:72mm;height:auto;min-height:56mm;border-style:solid;border-color:#bbb;border-radius:6px;}
+.label-sheet.single .lbl .nm{font-size:14px;margin-bottom:3mm;}
+.label-sheet.single .lbl .qr canvas,.label-sheet.single .lbl .qr img{max-width:52mm;}
+.label-sheet.single .lbl .cd{font-size:11px;}
+.label-sheet .lbl{width:25%;height:54mm;border:1px dashed #cfcfcf;padding:2.5mm 2mm;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;
+  overflow:hidden;page-break-inside:avoid;break-inside:avoid;}
+.label-sheet .lbl .nm{font-size:9px;font-weight:bold;color:#000;line-height:1.15;width:100%;margin-bottom:1mm;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.label-sheet .lbl .qr{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;}
+.label-sheet .lbl .qr canvas,.label-sheet .lbl .qr img{max-width:100%;max-height:100%;width:auto !important;height:auto !important;image-rendering:pixelated;}
+.label-sheet .lbl .cd{font-size:7.5px;font-family:monospace;color:#000;margin-top:0.5mm;width:100%;overflow:hidden;white-space:nowrap;}
+@media print{
+  html,body{background:#fff !important;}
+  body.labels-open > *:not(#labelSheetOverlay){display:none !important;}
+  #labelSheetOverlay{position:static;overflow:visible;}
+  #labelSheetBar{display:none !important;}
+  .label-sheet .lbl .qr canvas,.label-sheet .lbl .qr img{width:26mm !important;height:26mm !important;max-width:none;max-height:none;}
+  @page{size:A4 portrait;margin:8mm;}
+}
 </style>
 </head>
 <body>
@@ -1225,7 +1256,19 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
   <div id="skbRows"></div>
 </div>
 
+<!-- Лист этикеток для печати: показывается поверх приложения (без всплывающих
+     окон — их блокирует браузер), печатается через системную печать. -->
+<div id="labelSheetOverlay" hidden>
+  <div id="labelSheetBar">
+    <button class="btn primary sm" style="width:auto;" onclick="window.print()"><svg class="icon"><use href="#i-printer"/></svg>Печать</button>
+    <button class="btn ghost sm" style="width:auto;" onclick="closeLabelSheet()"><svg class="icon"><use href="#i-x"/></svg>Закрыть</button>
+    <span id="labelSheetInfo" class="t-caption"></span>
+  </div>
+  <div id="labelSheetGrid" class="label-sheet"></div>
+</div>
+
 <script src="vendor/zxing.min.js"></script>
+<script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
 <script src="sync-config.js"></script>
 <script>
@@ -5317,22 +5360,13 @@ async function generateBarcodeForModal(){
   document.getElementById('pmBarcode').value = code;
 }
 
-async function printQRForModal(){
-  const name = document.getElementById('pmName').value.trim();
-  let barcode = document.getElementById('pmBarcode').value.trim();
-  if(!barcode){ toast('Сначала укажите или сгенерируйте штрихкод'); return; }
-  const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>QR-код</title>
-    <style>body{font-family:Arial;padding:20px;} .label{width:220px;border:1px solid #999;border-radius:8px;padding:16px;text-align:center;}
-    .lname{font-weight:700;font-size:15px;margin-bottom:12px;} .qrbox{display:flex;justify-content:center;}
-    button{margin-bottom:16px;padding:8px 14px;font-size:14px;} @media print{button{display:none;}}</style>
-    </head><body><button onclick="window.print()">Печать</button><div class="label">
-    <div class="lname">${escapeHtml(name)}</div><div id="qr0" class="qrbox"></div>
-    </div>
-    <script src="${new URL('vendor/qrcode.min.js', location.href).href}"><\/script>
-    <script>new QRCode(document.getElementById('qr0'), {text:${JSON.stringify(barcode)}, width:160, height:160, correctLevel:QRCode.CorrectLevel.M});<\/script>
-    </body></html>`);
-  w.document.close();
+function printQRForModal(){
+  const name = document.getElementById('pmName').value.trim() || 'Товар';
+  const barcode = document.getElementById('pmBarcode').value.trim();
+  const sku = document.getElementById('pmSku').value.trim();
+  if(!barcode && !sku){ toast('Сначала укажите SKU или штрихкод'); return; }
+  const price = Number(document.getElementById('pmPrice').value) || 0;
+  openBarcodeSheet([{name, barcode, sku, price}]);
 }
 
 /* ============================================================
@@ -5359,10 +5393,10 @@ async function printBarcodesSelected(){
 }
 
 function openBarcodeSheet(list){
-  const w = window.open('', '_blank');
-  if(!w){ toast('Разрешите всплывающие окна, чтобы открыть печать'); return; }
-  const qrLib = new URL('vendor/qrcode.min.js', location.href).href;
-  const cells = list.map(p=>{
+  const grid = document.getElementById('labelSheetGrid');
+  const overlay = document.getElementById('labelSheetOverlay');
+  if(!grid || !overlay) return;
+  grid.innerHTML = list.map(p=>{
     const val = String(p.barcode || '').trim() || String(p.sku);
     return `<div class="lbl">
       <div class="nm">${escapeHtml(p.name)}</div>
@@ -5370,35 +5404,24 @@ function openBarcodeSheet(list){
       <div class="cd">${escapeHtml(val)}${p.price ? ' · ' + Math.round(p.price) + ' ₽' : ''}</div>
     </div>`;
   }).join('');
-  w.document.write(`<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
-<title>Этикетки — ${list.length} шт</title>
-<style>
-  @page { size: A4 portrait; margin: 8mm; }
-  *{box-sizing:border-box;}
-  body{margin:0;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .bar{position:fixed;top:0;left:0;right:0;z-index:9;padding:8px 12px;background:#f2f2f2;border-bottom:1px solid #ccc;text-align:center;font-size:13px;}
-  .bar button{padding:8px 18px;font-size:14px;cursor:pointer;margin-right:10px;}
-  .sheet{padding-top:50px;display:flex;flex-wrap:wrap;}
-  .lbl{width:25%;height:54mm;border:1px dashed #cfcfcf;padding:3mm 2mm;display:flex;flex-direction:column;
-       align-items:center;justify-content:flex-start;text-align:center;overflow:hidden;page-break-inside:avoid;break-inside:avoid;}
-  .lbl .nm{font-size:9.5px;font-weight:bold;color:#000;line-height:1.15;max-height:2.4em;overflow:hidden;width:100%;margin-bottom:1.5mm;}
-  .lbl .qr{flex:1;display:flex;align-items:center;justify-content:center;}
-  .lbl .qr canvas, .lbl .qr img{width:29mm !important;height:29mm !important;}
-  .lbl .cd{font-size:8px;font-family:monospace;color:#000;margin-top:1mm;width:100%;overflow:hidden;white-space:nowrap;}
-  @media print{ .bar{display:none;} .sheet{padding-top:0;} }
-</style></head><body>
-<div class="bar"><button onclick="window.print()">Печать</button>${list.length} шт · 20 на листе A4</div>
-<div class="sheet">${cells}</div>
-<script src="${qrLib}"><\/script>
-<script>
-  document.querySelectorAll('.qr').forEach(function(el){
-    try{ new QRCode(el, {text: el.getAttribute('data-val'), width:120, height:120, correctLevel: QRCode.CorrectLevel.M}); }
-    catch(e){ el.textContent = el.getAttribute('data-val'); }
+  grid.querySelectorAll('.qr').forEach(el=>{
+    try{
+      new QRCode(el, {text: el.getAttribute('data-val'), width:120, height:120, correctLevel: QRCode.CorrectLevel.M});
+    }catch(e){ el.textContent = el.getAttribute('data-val'); }
   });
-<\/script>
-</body></html>`);
-  w.document.close();
+  grid.className = 'label-sheet' + (list.length === 1 ? ' single' : '');
+  const info = document.getElementById('labelSheetInfo');
+  if(info) info.textContent = (list.length === 1) ? 'Этикетка товара' : (list.length + ' шт · по 20 на листе A4');
+  overlay.hidden = false;
+  document.body.classList.add('labels-open');
+  try{ overlay.scrollTo(0,0); }catch(e){}
 }
+function closeLabelSheet(){
+  document.body.classList.remove('labels-open');
+  const overlay = document.getElementById('labelSheetOverlay');
+  if(overlay){ overlay.hidden = true; const g = document.getElementById('labelSheetGrid'); if(g) g.innerHTML = ''; }
+}
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && document.body.classList.contains('labels-open')) closeLabelSheet(); });
 
 async function exportBackup(){
   const data = {
