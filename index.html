@@ -1946,12 +1946,13 @@ const CHROME_MENUS = {
   stock: ()=>[
     {icon:'i-plus',     title:'Добавить товар',        action:'openProductModal()'},
     {sep:true},
+    {icon:'i-printer',  title:'Распечатать штрихкоды', action:'printBarcodesSelected()'},
     {icon:'i-download', title:'Накладная поставщику',  action:'exportSupplierInvoice()', needsSelection:true},
     {icon:'i-x',        title:'Снять выделение',       action:'clearInvoiceSelection()', needsSelection:true},
     {icon:'i-trash',    title:'Удалить выбранные',     action:'deleteSelectedProducts()', needsSelection:true, danger:true},
     {note: invoiceSelection.size
-        ? ('Отмечено: ' + invoiceSelection.size + ' ' + pluralTovar(invoiceSelection.size))
-        : 'Отметьте товары галочками в списке'}
+        ? ('Отмечено: ' + invoiceSelection.size + ' ' + pluralTovar(invoiceSelection.size) + ' — печать по отмеченным')
+        : 'Без галочек печатаются все товары из текущего списка'}
   ],
   history: ()=>[
     {icon:'i-check',    title:'Исправить остаток',     action:'deleteSelectedHistoryWithCorrection()', needsSelection:true},
@@ -5331,6 +5332,71 @@ async function printQRForModal(){
     <script src="${new URL('vendor/qrcode.min.js', location.href).href}"><\/script>
     <script>new QRCode(document.getElementById('qr0'), {text:${JSON.stringify(barcode)}, width:160, height:160, correctLevel:QRCode.CorrectLevel.M});<\/script>
     </body></html>`);
+  w.document.close();
+}
+
+/* ============================================================
+   ПЕЧАТЬ ЭТИКЕТОК — название сверху, QR-код снизу, 20 штук на лист A4
+   Без галочек печатаются все товары из текущего списка «Склада»
+   (с учётом поиска и фильтра поставщика). С галочками — только они.
+   В QR кодируется штрихкод товара, а если его нет — SKU.
+   ============================================================ */
+async function printBarcodesSelected(){
+  const all = await getAllLive('products');
+  let list;
+  if(invoiceSelection.size > 0){
+    list = all.filter(p=> invoiceSelection.has(p.sku));
+  } else {
+    const q = (document.getElementById('stockSearch').value || '').toLowerCase();
+    const sup = (document.getElementById('supplierFilter').value || '');
+    list = all.filter(p=>
+      (!q || p.name.toLowerCase().includes(q) || String(p.sku).toLowerCase().includes(q) || String(p.barcode).toLowerCase().includes(q))
+      && (!sup || (p.supplier || '').trim() === sup));
+  }
+  if(!list.length){ toast('Нет товаров для печати'); return; }
+  list.sort((a,b)=> a.name.localeCompare(b.name, 'ru'));
+  openBarcodeSheet(list);
+}
+
+function openBarcodeSheet(list){
+  const w = window.open('', '_blank');
+  if(!w){ toast('Разрешите всплывающие окна, чтобы открыть печать'); return; }
+  const qrLib = new URL('vendor/qrcode.min.js', location.href).href;
+  const cells = list.map(p=>{
+    const val = String(p.barcode || '').trim() || String(p.sku);
+    return `<div class="lbl">
+      <div class="nm">${escapeHtml(p.name)}</div>
+      <div class="qr" data-val="${escapeAttr(val)}"></div>
+      <div class="cd">${escapeHtml(val)}${p.price ? ' · ' + Math.round(p.price) + ' ₽' : ''}</div>
+    </div>`;
+  }).join('');
+  w.document.write(`<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
+<title>Этикетки — ${list.length} шт</title>
+<style>
+  @page { size: A4 portrait; margin: 8mm; }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .bar{position:fixed;top:0;left:0;right:0;z-index:9;padding:8px 12px;background:#f2f2f2;border-bottom:1px solid #ccc;text-align:center;font-size:13px;}
+  .bar button{padding:8px 18px;font-size:14px;cursor:pointer;margin-right:10px;}
+  .sheet{padding-top:50px;display:flex;flex-wrap:wrap;}
+  .lbl{width:25%;height:54mm;border:1px dashed #cfcfcf;padding:3mm 2mm;display:flex;flex-direction:column;
+       align-items:center;justify-content:flex-start;text-align:center;overflow:hidden;page-break-inside:avoid;break-inside:avoid;}
+  .lbl .nm{font-size:9.5px;font-weight:bold;line-height:1.15;max-height:2.4em;overflow:hidden;width:100%;margin-bottom:1.5mm;}
+  .lbl .qr{flex:1;display:flex;align-items:center;justify-content:center;}
+  .lbl .qr canvas, .lbl .qr img{width:29mm !important;height:29mm !important;}
+  .lbl .cd{font-size:8px;font-family:monospace;margin-top:1mm;width:100%;overflow:hidden;white-space:nowrap;}
+  @media print{ .bar{display:none;} .sheet{padding-top:0;} }
+</style></head><body>
+<div class="bar"><button onclick="window.print()">Печать</button>${list.length} шт · 20 на листе A4</div>
+<div class="sheet">${cells}</div>
+<script src="${qrLib}"><\/script>
+<script>
+  document.querySelectorAll('.qr').forEach(function(el){
+    try{ new QRCode(el, {text: el.getAttribute('data-val'), width:120, height:120, correctLevel: QRCode.CorrectLevel.M}); }
+    catch(e){ el.textContent = el.getAttribute('data-val'); }
+  });
+<\/script>
+</body></html>`);
   w.document.close();
 }
 
