@@ -914,7 +914,7 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
           <button class="btn ghost sm" style="width:auto;white-space:nowrap;" onclick="copyInviteCode()">Копировать</button>
         </div>
         <button class="btn ghost" style="margin-top:8px;" onclick="rotateInvite()"><svg class="icon"><use href="#i-x"/></svg>Сменить код</button>
-        <div class="t-caption" style="margin:6px 0 var(--sp-3);color:var(--text-tertiary);">Сменить код — старые приглашения перестанут работать. Уже вошедшие сотрудники останутся.</div>
+        <div class="t-caption" style="margin:6px 0 var(--sp-3);color:var(--text-tertiary);">Сменить код — старые приглашения перестанут работать. Уже вошедшие партнёры останутся.</div>
         <div id="membersList"></div>
       </div>
 
@@ -998,29 +998,21 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
       </div>
     </section>
 
-    <!-- БАЛАНС / КОМИССИЯ ПАРТНЁРОВ -->
+    <!-- БАЛАНС / ВЫПЛАТЫ ПАРТНЁРАМ -->
     <section id="sec-balance">
       <div class="page-head"><h2 id="balHead">Баланс партнёров</h2><p id="balSub">Начисляется автоматически с каждого «Расхода» на Панели</p></div>
 
-      <datalist id="employeesList"></datalist>
-
-      <!-- только владелец: ставки и учёт выплат -->
+      <!-- только владелец -->
       <div id="balOwnerTools">
         <div class="card">
           <div class="card-head"><span class="t-eyebrow">Ставки комиссии</span></div>
           <div id="commTiersSummary" class="t-small"></div>
           <div class="t-caption" style="margin-top:8px;color:var(--text-tertiary);">С каждой продажи в «Расходе» партнёрам начисляется процент по сумме продажи (кол-во × цена). Пороги и проценты — в Настройках.</div>
         </div>
-
         <div class="card">
-          <div class="card-head"><span class="t-eyebrow">Записать выплату партнёрам</span></div>
-          <div class="field"><label>Партнёр (необязательно)</label><input type="text" id="payEmployee" list="employeesList" placeholder="оставьте пустым — на всех"></div>
-          <div class="filter-row">
-            <input type="date" id="payDate" aria-label="Дата выплаты">
-            <input type="number" id="payAmount" inputmode="numeric" placeholder="Сумма, ₽">
-          </div>
-          <div class="field" style="margin-top:8px;"><label>Комментарий (необязательно)</label><input type="text" id="payNote" placeholder="Например: наличными"></div>
-          <button class="btn primary" onclick="addPayout()"><svg class="icon"><use href="#i-check"/></svg>Записать выплату</button>
+          <div class="card-head"><span class="t-eyebrow">Что видит партнёр</span></div>
+          <div class="field"><label>Показывать операции и начисления с даты</label><input type="date" id="partnerFromInput" onchange="savePartnerFrom()"></div>
+          <div class="t-caption" style="color:var(--text-tertiary);">Всё, что было до этой даты, партнёру не показывается.</div>
         </div>
       </div>
 
@@ -1029,7 +1021,6 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         <button id="balPeriodBtnYesterday" onclick="renderBalance('yesterday',this)">Вчера</button>
         <button id="balPeriodBtn7" onclick="renderBalance(7,this)">Неделя</button>
         <button id="balPeriodBtn30" onclick="renderBalance(30,this)">Месяц</button>
-        <button id="balPeriodBtnAll" onclick="renderBalance(null,this)">Всё</button>
         <button id="balPeriodBtnRange" class="period-cal" onclick="openRangeModal('balance')" aria-label="Выбрать свой период"><svg class="icon"><use href="#i-calendar"/></svg></button>
       </div>
       <div class="t-caption" id="balCustomRangeLabel" style="display:none;margin:-4px 0 var(--sp-3);color:var(--accent-strong);"></div>
@@ -1039,32 +1030,28 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         <div id="balSummary"></div>
       </div>
 
-      <div class="card" id="balByEmployeeCard" hidden>
-        <div class="card-head"><span class="t-eyebrow">По партнёрам</span></div>
-        <div id="balByEmployee"></div>
-      </div>
-
       <div class="card">
         <div class="card-head"><span class="t-eyebrow">По дням</span></div>
         <div id="balByDay"></div>
       </div>
 
       <div class="card">
-        <div class="card-head"><span class="t-eyebrow">По вилкам ставок</span></div>
+        <div class="card-head"><span class="t-eyebrow">Продажи по ставкам</span></div>
         <div id="balByTier"></div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <span class="t-eyebrow">Начисления</span>
+          <span class="t-eyebrow" id="balUnpaidHead">Не выплачено</span>
           <button class="btn ghost sm" style="width:auto;" onclick="exportBalanceCSV()"><svg class="icon"><use href="#i-download"/></svg>CSV</button>
         </div>
+        <div class="t-caption" id="balUnpaidHint" style="margin-bottom:6px;color:var(--text-tertiary);">Отметьте галочкой то, что уже отдали партнёру.</div>
         <div id="balOrdersList"></div>
       </div>
 
-      <div class="card" id="balPayoutsCard">
-        <div class="card-head"><span class="t-eyebrow">Выплаты</span></div>
-        <div id="balPayoutsList"></div>
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow" id="balPaidHead">Выплачено</span></div>
+        <div id="balPaidList"></div>
       </div>
     </section>
 
@@ -1163,15 +1150,11 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
       <div class="field-error" id="pinError"></div>
     </div>
 
-    <!-- Поля партнёра: код приглашения от владельца + своё имя -->
+    <!-- Поле партнёра: код приглашения от владельца -->
     <div id="empFields" hidden>
       <div class="auth-field">
         <label for="inviteCodeInput">Код приглашения</label>
         <input type="text" id="inviteCodeInput" name="inviteCode" autocomplete="one-time-code" autocorrect="off" autocapitalize="characters" spellcheck="false" inputmode="text" enterkeyhint="go" placeholder="6 символов от владельца">
-      </div>
-      <div class="auth-field">
-        <label for="empNameInput">Ваше имя</label>
-        <input type="text" id="empNameInput" autocomplete="name" placeholder="как вас записать">
       </div>
     </div>
 
@@ -1784,10 +1767,10 @@ function openPinModal(mode){
   if(note) note.style.display = isChange ? 'none' : 'block';
   document.querySelectorAll('.auth-skip').forEach(b=>{ b.style.display = isChange ? 'none' : 'block'; });
 
-  // сброс режима «вход сотрудника»
+  // сброс режима «вход партнёра»
   bg.dataset.emp = '0';
   const ef = document.getElementById('empFields'); if(ef) ef.hidden = true;
-  const etb = document.getElementById('empToggleBtn'); if(etb) etb.textContent = 'Войти как сотрудник';
+  const etb = document.getElementById('empToggleBtn'); if(etb) etb.textContent = 'Войти как партнёр';
 
   bg.dataset.mode = mode || 'login';
   bg.classList.add('show');
@@ -1830,16 +1813,14 @@ async function submitPin(){
     return;
   }
 
-  /* Вход сотрудника: своя учётная запись + присоединение по коду. */
+  /* Вход партнёра: своя учётная запись (логин+пароль) + присоединение по коду. */
   if(bg && bg.dataset.emp === '1'){
     const code = (document.getElementById('inviteCodeInput').value || '').trim();
-    const empName = (document.getElementById('empNameInput').value || '').trim();
     if(!code){ pinFail('Введите код приглашения'); return; }
-    if(!empName){ pinFail('Укажите ваше имя'); return; }
     setSyncLine('Проверяем…');
     const si = await Sync.signIn(login, password);
     if(!si.ok){ pinFail(si.error || 'Не удалось войти'); setSyncLine(describeSync('signed-out')); return; }
-    const jr = await Sync.joinWorkspace(code, empName);
+    const jr = await Sync.joinWorkspace(code, '');
     document.getElementById('pinSubmit').disabled = false;
     if(!jr.ok){ pinFail(jr.error || 'Не удалось присоединиться по коду'); return; }
     closePinModal();
@@ -3617,7 +3598,9 @@ async function finishInventory(){
 }
 
 async function renderHistory(){
-  const all = await getAllLive('history');
+  let all = await getAllLive('history');
+  // партнёр видит операции только начиная с даты отсечки (Настройки владельца → Баланс)
+  if(isEmployee()) all = all.filter(h=> (h.timestamp || 0) >= partnerFromTs());
   all.sort((a,b)=> b.timestamp - a.timestamp);
   const typeFilter = document.getElementById('historyFilter').value;
 
@@ -4087,7 +4070,26 @@ async function computeMonthlyNetProfit(monthsBack){
     const b = buckets.find(x=>x.year===d.getFullYear() && x.month===d.getMonth());
     if(b) b.netProfit -= (a.amount||0);
   });
+  // комиссия партнёрам — тоже расход, вычитаем из чистой прибыли
+  (await getAllLive('orders')).forEach(o=>{
+    const d = new Date(o.timestamp);
+    const b = buckets.find(x=>x.year===d.getFullYear() && x.month===d.getMonth());
+    if(b) b.netProfit -= (Number(o.commission)||0);
+  });
   return buckets;
+}
+
+/* Начислено партнёрам за период (для «Расходов» и «Статистики»). */
+async function computePartnerCommission(days){
+  const orders = await getAllLive('orders');
+  if(days === null || days === undefined){
+    return orders.reduce((s,o)=> s + (Number(o.commission)||0), 0);
+  }
+  const range = getPeriodRange(days);
+  if(!range) return orders.reduce((s,o)=> s + (Number(o.commission)||0), 0);
+  return orders
+    .filter(o=> o.timestamp >= range.start && o.timestamp <= range.end)
+    .reduce((s,o)=> s + (Number(o.commission)||0), 0);
 }
 
 async function renderStatsHero(){
@@ -4130,6 +4132,8 @@ async function renderStats(){
   const totalStock = products.reduce((s,p)=>s+p.totalStock,0);
 
   const potential = computeStockPotential(products);
+  const partnerToday = await computePartnerCommission(1);
+  const partnerMonth = await computePartnerCommission(30);
 
   const salesBySku = {};
   today.filter(h=>h.type==='Расход').forEach(h=> salesBySku[h.sku]=(salesBySku[h.sku]||0)+h.qty );
@@ -4143,6 +4147,8 @@ async function renderStats(){
     <div class="stat-tile" style="--tile-color:#2BBE85"><div class="val">${receivedQty}</div><div class="lbl">Принято, шт</div></div>
     <div class="stat-tile" style="--tile-color:#FFA35C"><div class="val">${totalStock}</div><div class="lbl">Остаток склада</div></div>
     <div class="stat-tile" style="--tile-color:#2FBFAE"><div class="val small">${escapeHtml(bestName)}</div><div class="lbl">Топ товар дня</div></div>
+    <div class="stat-tile" style="--tile-color:#E86F2E" title="Начислено партнёрам за сегодня"><div class="val">${Math.round(partnerToday)} ₽</div><div class="lbl">Партнёрам сегодня</div></div>
+    <div class="stat-tile" style="--tile-color:#E86F2E" title="Начислено партнёрам за 30 дней"><div class="val">${Math.round(partnerMonth)} ₽</div><div class="lbl">Партнёрам за месяц</div></div>
     <div class="stat-tile wide" style="--tile-color:#FFC94D"><span class="lbl">Потенциальная выручка склада</span><span class="val">${Math.round(potential.revenue)} ₽</span></div>
   `;
 }
@@ -4431,7 +4437,7 @@ async function computeFinance(days){
 var finRingSelected = null;
 var finRingSegments = [];
 
-function renderFinanceRing(f, adSpend, netProfitFinal){
+function renderFinanceRing(f, adSpend, netProfitFinal, partnerComm){
   /* Выручки в кольце нет намеренно: она равна сумме всех остальных долей,
      поэтому занимала половину круга и сплющивала всё остальное. Главная
      цифра здесь — чистая прибыль, она же в центре. */
@@ -4441,6 +4447,7 @@ function renderFinanceRing(f, adSpend, netProfitFinal){
     {name:'Валовая прибыль', value:f.grossProfit, color:'#FFA35C', icon:'i-chart'},
     {name:'Налог', value:f.taxAmount, color:'#E8598A', icon:'i-alert'},
     {name:'Комиссия маркетплейса', value:f.commissionAmount, color:'#FFC94D', icon:'i-wallet'},
+    {name:'Комиссия партнёрам', value:partnerComm || 0, color:'#E86F2E', icon:'i-coins'},
     {name:'Упаковка', value:f.packagingAmount, color:'#2FBFAE', icon:'i-box'},
     {name:'Скидка на доставку', value:f.deliveryDiscountAmount, color:'#8C7EF2', icon:'i-out'},
     {name:'Реклама', value:adSpend, color:'#B57BFF', icon:'i-chart'},
@@ -4534,10 +4541,11 @@ async function renderFinance(days, btnEl){
 
   const f = await computeFinance(days);
   const adSpend = await computeAdSpendForPeriod(days);
-  const netProfitFinal = f.netProfit - adSpend;
+  const partnerComm = await computePartnerCommission(days);
+  const netProfitFinal = f.netProfit - adSpend - partnerComm;
   const round = (n)=> Math.round(n);
 
-  renderFinanceRing(f, adSpend, netProfitFinal);
+  renderFinanceRing(f, adSpend, netProfitFinal, partnerComm);
 
   const rows = Object.values(f.bySku).sort((a,b)=>b.net-a.net);
   const list = document.getElementById('financeByProduct');
@@ -4871,24 +4879,34 @@ async function saveCommTiers(){
   toast('Ставки сохранены. Прошлые заказы не пересчитываются');
 }
 
-/* Начисления создаёт «Расход» на Панели — вручную их не вводят. */
+/* Начисления создаёт «Расход» на Панели. Выплата отмечается галочкой прямо
+   на начислении — отдельного ввода выплат больше нет. */
 
-async function addPayout(){
-  const employee = document.getElementById('payEmployee').value.trim();
-  const amount = Number(document.getElementById('payAmount').value);
-  if(!(amount > 0)){ toast('Введите сумму выплаты'); return; }
-  const dateStr = document.getElementById('payDate').value || todayDateKey();
-  const ts = new Date(dateStr + 'T12:00:00').getTime();
-  await put('payouts', {
-    uid: newUid(), employee, memberId: wsMemberIdByName(employee), amount,
-    note: document.getElementById('payNote').value.trim(),
-    timestamp: ts, dateKey: dateStr,
-    dateDisplay: new Date(ts).toLocaleDateString('ru-RU')
-  });
-  document.getElementById('payAmount').value = '';
-  document.getElementById('payNote').value = '';
-  toast('Выплата записана');
-  if(window.Sync && Sync.syncNow) Sync.syncNow('новая выплата');
+function partnerFromStr(){ return (settings && settings.partnerFrom) || '2026-08-29'; }
+function partnerFromTs(){
+  const t = Date.parse(partnerFromStr() + 'T00:00:00');
+  return isNaN(t) ? 0 : t;
+}
+async function savePartnerFrom(){
+  const v = document.getElementById('partnerFromInput').value;
+  settings.partnerFrom = v || '2026-08-29';
+  await saveAppSettings();
+  toast('Партнёр видит операции с ' + new Date(partnerFromTs()).toLocaleDateString('ru-RU'));
+  await renderBalance(currentBalancePeriod, null);
+}
+/* партнёру — только общий пул и только с даты отсечки */
+function visibleToPartner(row){
+  if(!isEmployee()) return true;
+  return matchesEmployeeScope(row) && (row.timestamp || 0) >= partnerFromTs();
+}
+
+async function toggleOrderPaid(uid, isPaid){
+  const o = await get('orders', uid);
+  if(!o) return;
+  o.paid = !!isPaid;
+  o.paidAt = isPaid ? Date.now() : undefined;
+  await put('orders', o);
+  if(window.Sync && Sync.syncNow) Sync.syncNow(isPaid ? 'отмечено выплачено' : 'снята отметка');
   await renderBalance(currentBalancePeriod, null);
 }
 async function deleteOrder(uid){
@@ -4898,146 +4916,127 @@ async function deleteOrder(uid){
   toast('Начисление убрано');
   await renderBalance(currentBalancePeriod, null);
 }
-async function deletePayout(uid){
-  if(!confirm('Удалить эту выплату?')) return;
-  await softDelete('payouts', uid);
-  if(window.Sync && Sync.syncNow) Sync.syncNow('удалена выплата');
-  toast('Выплата удалена');
-  await renderBalance(currentBalancePeriod, null);
-}
-async function updateEmployeesDatalist(){
-  const dl = document.getElementById('employeesList');
-  if(!dl) return;
-  const names = new Set();
-  (window.__wsMembers || []).forEach(m=>{ if(m.name) names.add(m.name); });
-  (await getAllLive('orders')).forEach(o=>{ if(o.employee) names.add(o.employee); });
-  (await getAllLive('payouts')).forEach(p=>{ if(p.employee) names.add(p.employee); });
-  dl.innerHTML = [...names].sort((a,b)=> a.localeCompare(b,'ru'))
-    .map(n=> `<option value="${escapeHtml(n)}">`).join('');
-}
 
 async function computeBalance(range){
-  let allO = await getAllLive('orders');
-  let allP = await getAllLive('payouts');
-  if(isEmployee()){ allO = allO.filter(matchesEmployeeScope); allP = allP.filter(matchesEmployeeScope); }
+  const all = (await getAllLive('orders')).filter(visibleToPartner);
 
-  /* Долг — величина накопительная, считаем за всё время, независимо от периода. */
-  const earnedAll = allO.reduce((s, o)=> s + (Number(o.commission) || 0), 0);
-  const paidAll   = allP.reduce((s, p)=> s + (Number(p.amount) || 0), 0);
-  const totalBalanceAll = earnedAll - paidAll;
+  /* Долг — накопительный: всё начисленное минус отмеченное выплаченным, за всё время. */
+  const earnedAll = all.reduce((s,o)=> s + (Number(o.commission)||0), 0);
+  const paidAllAmt = all.filter(o=> o.paid).reduce((s,o)=> s + (Number(o.commission)||0), 0);
+  const debtAll = earnedAll - paidAllAmt;
 
   const inRange = ts => !range || (ts >= range.start && ts <= range.end);
-  const O = allO.filter(o=> inRange(o.timestamp));
-  const P = allP.filter(p=> inRange(p.timestamp));
+  const O = all.filter(o=> inRange(o.timestamp));
 
-  let ordersSum = 0, commission = 0, paid = 0;
+  let ordersSum = 0, commission = 0, paid = 0, unpaid = 0;
   const byTier = {}, byDay = {};
-
   O.forEach(o=>{
-    const amt = Number(o.amount) || 0, com = Number(o.commission) || 0, rp = Number(o.ratePercent) || 0;
+    const amt = Number(o.amount)||0, com = Number(o.commission)||0, rp = Number(o.ratePercent)||0;
     ordersSum += amt; commission += com;
+    if(o.paid) paid += com; else unpaid += com;
     const t = byTier[rp] || (byTier[rp] = {count:0, sum:0, commission:0});
     t.count++; t.sum += amt; t.commission += com;
     const key = o.dateKey || dateKeyOf(new Date(o.timestamp));
     const dd = byDay[key] || (byDay[key] = {count:0, sales:0, commission:0, paid:0, ts:o.timestamp});
-    dd.count++; dd.sales += amt; dd.commission += com;
-  });
-  P.forEach(p=>{
-    paid += Number(p.amount) || 0;
-    const key = p.dateKey || dateKeyOf(new Date(p.timestamp));
-    const dd = byDay[key] || (byDay[key] = {count:0, sales:0, commission:0, paid:0, ts:p.timestamp});
-    dd.paid += Number(p.amount) || 0;
+    dd.count++; dd.sales += amt; dd.commission += com; if(o.paid) dd.paid += com;
   });
 
-  return {ordersCount: O.length, ordersSum, commission, paid, earnedAll, paidAll, totalBalanceAll, byTier, byDay};
+  return {ordersCount:O.length, ordersSum, commission, paid, unpaid, earnedAll, paidAllAmt, debtAll, byTier, byDay};
 }
 
 function renderBalanceSummary(d){
   const emp = isEmployee();
-  const earnLbl = emp ? 'Мне начислено за период' : 'Начислено партнёрам за период';
-  const paidLbl = emp ? 'Мне выплачено за период' : 'Выплачено партнёрам за период';
-  const totLbl  = emp ? 'Мне должны (всего)'      : 'Долг партнёрам (всего)';
   document.getElementById('balSummary').innerHTML = `
     <div class="receipt-row"><span class="rl">Продаж за период</span><span class="rv">${d.ordersCount}</span></div>
     <div class="receipt-row"><span class="rl">Сумма продаж</span><span class="rv">${rub(d.ordersSum)} ₽</span></div>
-    <div class="receipt-row"><span class="rl">${earnLbl}</span><span class="rv">${rub(d.commission)} ₽</span></div>
-    <div class="receipt-row"><span class="rl">${paidLbl}</span><span class="rv">${rub(d.paid)} ₽</span></div>
-    <div class="receipt-row total"><span class="rl">${totLbl}</span><span class="rv">${rub(d.totalBalanceAll)} ₽</span></div>`;
+    <div class="receipt-row"><span class="rl">${emp ? 'Мне начислено' : 'Начислено'} за период</span><span class="rv">${rub(d.commission)} ₽</span></div>
+    <div class="receipt-row"><span class="rl">— выплачено</span><span class="rv">${rub(d.paid)} ₽</span></div>
+    <div class="receipt-row"><span class="rl">— не выплачено</span><span class="rv">${rub(d.unpaid)} ₽</span></div>
+    <div class="receipt-row total"><span class="rl">К выплате всего</span><span class="rv">${rub(d.debtAll)} ₽</span></div>`;
 }
 function renderBalanceByDay(d){
   const box = document.getElementById('balByDay');
   if(!box) return;
-  const rows = Object.entries(d.byDay).sort((a, b)=> b[1].ts - a[1].ts);
+  const rows = Object.entries(d.byDay).sort((a,b)=> b[1].ts - a[1].ts);
   if(!rows.length){ box.innerHTML = emptyLine('', 'За период движений нет'); return; }
-  box.innerHTML = rows.map(([key, x])=>{
+  box.innerHTML = rows.map(([key,x])=>{
     const dstr = new Date(x.ts).toLocaleDateString('ru-RU');
-    const parts = [];
-    if(x.count)  parts.push(x.count + ' прод. на ' + rub(x.sales) + ' ₽');
-    if(x.paid)   parts.push('выплачено ' + rub(x.paid) + ' ₽');
+    const left = x.commission - x.paid;
     return `<div class="row-item">
-      <div class="rmain"><div class="rname">${dstr}</div><div class="rmeta">${parts.join(' · ') || '—'}</div></div>
-      <div class="rside"><span class="rval ${x.commission>=0?'pos':''}">+${rub(x.commission)} ₽</span></div>
+      <div class="rmain"><div class="rname">${dstr}</div><div class="rmeta">${x.count} прод. на ${rub(x.sales)} ₽${x.paid ? ' · выплачено ' + rub(x.paid) + ' ₽' : ''}</div></div>
+      <div class="rside"><span class="rval ${left>0?'neg':'pos'}">${rub(left)} ₽</span></div>
     </div>`;
-  }).join('') + '<div class="t-caption" style="margin-top:8px;color:var(--text-tertiary);">Справа — начислено партнёрам за день.</div>';
+  }).join('') + '<div class="t-caption" style="margin-top:8px;color:var(--text-tertiary);">Справа — сколько за день ещё не выплачено.</div>';
+}
+/* понятная подпись вилки: ценовой диапазон продажи */
+function tierRangeLabel(pct){
+  const tiers = commissionTiers();
+  let prev = 0;
+  for(const t of tiers){
+    if(Number(t.percent) === Number(pct)){
+      if(t.max == null) return 'продажи от ' + rub(prev) + ' ₽';
+      return 'продажи ' + (prev > 0 ? rub(prev) + '–' : 'до ') + rub(t.max) + ' ₽';
+    }
+    if(t.max != null) prev = t.max;
+  }
+  return 'ставка ' + pct + '%';
 }
 function renderBalanceByTier(d){
   const box = document.getElementById('balByTier');
-  const tiers = Object.entries(d.byTier).sort((a, b)=> Number(b[0]) - Number(a[0]));
-  if(!tiers.length){ box.innerHTML = emptyLine('', 'Заказов за период нет'); return; }
-  box.innerHTML = tiers.map(([pct, t])=> `
+  const tiers = Object.entries(d.byTier).sort((a,b)=> Number(b[0]) - Number(a[0]));
+  if(!tiers.length){ box.innerHTML = emptyLine('', 'Продаж за период нет'); return; }
+  box.innerHTML = tiers.map(([pct,t])=> `
     <div class="row-item">
-      <div class="rmain"><div class="rname">Ставка ${pct}%</div><div class="rmeta">${t.count} зак. · сумма ${rub(t.sum)} ₽</div></div>
+      <div class="rmain"><div class="rname">${escapeHtml(tierRangeLabel(pct))} — ${pct}%</div><div class="rmeta">${t.count} прод. на ${rub(t.sum)} ₽</div></div>
       <div class="rside"><span class="rval">${rub(t.commission)} ₽</span></div>
-    </div>`).join('');
+    </div>`).join('') + '<div class="t-caption" style="margin-top:8px;color:var(--text-tertiary);">Сколько начислено с продаж в каждой ценовой вилке.</div>';
 }
 async function renderBalanceLists(range){
   const emp = isEmployee();
   const inRange = ts => !range || (ts >= range.start && ts <= range.end);
-  let orders = (await getAllLive('orders')).filter(o=> inRange(o.timestamp));
-  let payouts = (await getAllLive('payouts')).filter(p=> inRange(p.timestamp));
-  if(emp){ orders = orders.filter(matchesEmployeeScope); payouts = payouts.filter(matchesEmployeeScope); }
-  orders.sort((a, b)=> b.timestamp - a.timestamp);
-  payouts.sort((a, b)=> b.timestamp - a.timestamp);
-  const del = emp ? '' : true;
+  let orders = (await getAllLive('orders')).filter(o=> inRange(o.timestamp)).filter(visibleToPartner);
+  orders.sort((a,b)=> b.timestamp - a.timestamp);
+  const unpaid = orders.filter(o=> !o.paid);
+  const paid   = orders.filter(o=> o.paid);
 
-  const ol = document.getElementById('balOrdersList');
-  ol.innerHTML = orders.length ? orders.slice(0, 300).map(o=>{
-    const title = o.note || (o.employee ? o.employee : 'Продажа');
-    return `
-    <div class="row-item">
-      <div class="rmain">
-        <div class="rname">${escapeHtml(title)}</div>
-        <div class="rmeta">${o.dateDisplay || new Date(o.timestamp).toLocaleDateString('ru-RU')} · ${rub(o.amount)} ₽ · ставка ${o.ratePercent}%</div>
-      </div>
-      <div class="rside">
-        <span class="rval pos">+${rub(o.commission)} ₽</span>
-        ${del ? `<button class="icon-btn" onclick="deleteOrder('${escapeAttr(o.uid)}')" aria-label="Убрать начисление"><svg class="icon"><use href="#i-trash"/></svg></button>` : ''}
-      </div>
+  const row = (o, checked)=>{
+    const meta = (o.dateDisplay || new Date(o.timestamp).toLocaleDateString('ru-RU'))
+               + ' · ' + rub(o.amount) + ' ₽ · ставка ' + o.ratePercent + '%';
+    const chk = emp ? ''
+      : `<input type="checkbox" class="hist-chk" ${checked ? 'checked' : ''} aria-label="Отметить выплаченным" onchange="toggleOrderPaid('${escapeAttr(o.uid)}', this.checked)">`;
+    const delBtn = (emp || checked) ? ''
+      : `<button class="icon-btn" onclick="deleteOrder('${escapeAttr(o.uid)}')" aria-label="Убрать начисление"><svg class="icon"><use href="#i-trash"/></svg></button>`;
+    return `<div class="row-item">
+      ${chk}
+      <div class="rmain"><div class="rname">${escapeHtml(o.note || 'Продажа')}</div><div class="rmeta">${meta}</div></div>
+      <div class="rside"><span class="rval ${checked ? '' : 'pos'}">${rub(o.commission)} ₽</span>${delBtn}</div>
     </div>`;
-  }).join('') : emptyLine('', 'Начислений за период нет');
+  };
 
-  const pl = document.getElementById('balPayoutsList');
-  pl.innerHTML = payouts.length ? payouts.slice(0, 300).map(p=> `
-    <div class="row-item">
-      <div class="rmain">
-        <div class="rname">${escapeHtml(p.employee || '—')} · ${rub(p.amount)} ₽</div>
-        <div class="rmeta">${p.dateDisplay || new Date(p.timestamp).toLocaleDateString('ru-RU')}${p.note ? ' · ' + escapeHtml(p.note) : ''}</div>
-      </div>
-      <div class="rside">
-        ${del ? `<button class="icon-btn" onclick="deletePayout('${escapeAttr(p.uid)}')" aria-label="Удалить выплату"><svg class="icon"><use href="#i-trash"/></svg></button>` : '<span class="t-caption">выплата</span>'}
-      </div>
-    </div>`).join('') : emptyLine('', 'Выплат за период нет');
+  document.getElementById('balOrdersList').innerHTML = unpaid.length
+    ? unpaid.slice(0, 400).map(o=> row(o, false)).join('')
+    : emptyLine('', emp ? 'Всё выплачено' : 'Нет невыплаченных начислений');
+  document.getElementById('balPaidList').innerHTML = paid.length
+    ? paid.slice(0, 400).map(o=> row(o, true)).join('')
+    : emptyLine('', 'Выплаченных пока нет');
+
+  const uh = document.getElementById('balUnpaidHead');
+  if(uh) uh.textContent = 'Не выплачено' + (unpaid.length ? ' (' + unpaid.length + ')' : '');
+  const ph = document.getElementById('balPaidHead');
+  if(ph) ph.textContent = 'Выплачено' + (paid.length ? ' (' + paid.length + ')' : '');
+  const hint = document.getElementById('balUnpaidHint');
+  if(hint) hint.hidden = emp;
 }
 function exportBalanceCSV(){
   getAllLive('orders').then(all=>{
-    if(isEmployee()) all = all.filter(matchesEmployeeScope);
-    all.sort((a, b)=> b.timestamp - a.timestamp);
-    let csv = 'Дата;Что;Сумма продажи;Ставка %;Комиссия;Партнёр\n';
+    all = all.filter(visibleToPartner);
+    all.sort((a,b)=> b.timestamp - a.timestamp);
+    let csv = 'Дата;Что;Сумма продажи;Ставка %;Комиссия;Выплачено\n';
     all.forEach(o=>{
       csv += [o.dateDisplay || new Date(o.timestamp).toLocaleDateString('ru-RU'),
-              (o.note || 'продажа'), o.amount, o.ratePercent, o.commission, o.employee || ''].join(';') + '\n';
+              (o.note || 'продажа'), o.amount, o.ratePercent, o.commission, o.paid ? 'да' : 'нет'].join(';') + '\n';
     });
-    downloadFile('komissiya.csv', csv, 'text/csv;charset=utf-8');
+    downloadFile('vyplaty.csv', csv, 'text/csv;charset=utf-8');
   });
 }
 
@@ -5047,8 +5046,7 @@ async function renderBalance(period, btnEl){
   const isCustom = typeof period === 'object' && period !== null;
   const ids = {1:'balPeriodBtn1', 'yesterday':'balPeriodBtnYesterday', 7:'balPeriodBtn7', 30:'balPeriodBtn30'};
   document.querySelectorAll('#sec-balance .period-seg button').forEach(b=> b.classList.remove('active'));
-  const activeBtn = btnEl || document.getElementById(
-    isCustom ? 'balPeriodBtnRange' : (period === null ? 'balPeriodBtnAll' : ids[period]));
+  const activeBtn = btnEl || document.getElementById(isCustom ? 'balPeriodBtnRange' : ids[period]);
   if(activeBtn) activeBtn.classList.add('active');
 
   const label = document.getElementById('balCustomRangeLabel');
@@ -5061,7 +5059,8 @@ async function renderBalance(period, btnEl){
   }
 
   updateCommTiersSummary();
-  await updateEmployeesDatalist();
+  const pf = document.getElementById('partnerFromInput');
+  if(pf && !pf.value) pf.value = partnerFromStr();
 
   const range = getPeriodRange(period);
   const data = await computeBalance(range);
@@ -5123,12 +5122,10 @@ async function applyRoleUI(){
   if(ot) ot.hidden = emp;
   const bh = document.getElementById('balHead');
   const bs = document.getElementById('balSub');
-  if(bh) bh.textContent = emp ? 'Сколько мне должны' : 'Баланс партнёров';
+  if(bh) bh.textContent = emp ? 'Мои выплаты' : 'Баланс партнёров';
   if(bs) bs.textContent = emp
-    ? 'Начисляется автоматически с каждой продажи, минус выплаты'
-    : 'Начисляется автоматически с каждого «Расхода» на Панели';
-  const byEmpCard = document.getElementById('balByEmployeeCard');
-  if(byEmpCard) byEmpCard.hidden = true;                // разбивка по партнёрам сейчас не используется
+    ? 'Начисляется с каждой продажи. Галочка — уже выплачено.'
+    : 'Начисляется автоматически с каждого «Расхода». Галочкой отмечайте выплаченное.';
 
   // Настройки: сотруднику оставляем только карточку «Синхронизация»
   document.querySelectorAll('#sec-settings .card').forEach(c=>{
@@ -5166,7 +5163,7 @@ function toggleEmployeeLogin(){
   bg.dataset.emp = on ? '1' : '0';
   document.getElementById('empFields').hidden = !on;
   document.getElementById('empToggleBtn').textContent = on ? 'Обычный вход (владелец)' : 'Войти как партнёр';
-  document.getElementById('pinTitle').textContent = on ? 'Вход партнёра' : 'Вход в склад';
+  document.getElementById('pinTitle').textContent = on ? 'Вход для партнёра' : 'Вход в склад';
   document.getElementById('pinHint').textContent = on
     ? 'Введите код приглашения от владельца, а логин и пароль придумайте свои.'
     : 'Один вход на телефон, планшет и компьютер — данные едут между ними сами.';
@@ -5191,10 +5188,10 @@ async function renderMembersCard(){
   }
   box.innerHTML = members.map(m=>`
     <div class="row-item">
-      <div class="rmain"><div class="rname">${escapeHtml(m.name || 'Сотрудник')}</div>
+      <div class="rmain"><div class="rname">${escapeHtml(m.name || 'Партнёр')}</div>
         <div class="rmeta">с ${new Date(m.created_at).toLocaleDateString('ru-RU')}</div></div>
       <div class="rside">
-        <button class="icon-btn" onclick="removeMemberUI('${escapeAttr(m.member_id)}')" aria-label="Убрать сотрудника"><svg class="icon"><use href="#i-trash"/></svg></button>
+        <button class="icon-btn" onclick="removeMemberUI('${escapeAttr(m.member_id)}')" aria-label="Убрать партнёра"><svg class="icon"><use href="#i-trash"/></svg></button>
       </div>
     </div>`).join('');
 }
