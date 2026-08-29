@@ -50,6 +50,7 @@
 }
 
 *{box-sizing:border-box;}
+[hidden]{display:none !important;}   /* иначе flex/grid перебивают атрибут hidden */
 /* Браузер на телефоне обновляет страницу, если потянуть её вниз от края.
    Внутри приложения это только мешает: тянут, чтобы закрыть шторку, а
    вместо этого перезагружается всё. */
@@ -563,6 +564,7 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
   <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="18.5" r="1.6"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></symbol>
   <symbol id="i-qrcode" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M18 14h3v3h-3z"/><path d="M14 18h3v3h-3z"/><path d="M18 18h3v3h-3z"/></symbol>
+  <symbol id="i-coins" viewBox="0 0 24 24"><ellipse cx="8.5" cy="6.5" rx="5.5" ry="3"/><path d="M3 6.5v4c0 1.66 2.46 3 5.5 3s5.5-1.34 5.5-3v-4"/><path d="M14 10.2c2.9-.2 6-1.4 6-3.2M9 13.5v3.5c0 1.66 2.46 3 5.5 3s5.5-1.34 5.5-3V13"/></symbol>
 </svg>
 
 <div id="app">
@@ -863,6 +865,27 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         <button class="btn primary" onclick="saveSettings()"><svg class="icon"><use href="#i-check"/></svg>Сохранить</button>
         <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Версия приложения: <span id="appVersion">—</span></div>
       </div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Ставки комиссии партнёров</span></div>
+        <div class="t-caption" style="margin-bottom:var(--sp-3);color:var(--text-tertiary);">Процент считается от суммы каждой продажи (кол-во × цена) в «Расходе». Продажа ровно на пороговую сумму попадает в нижнюю ставку (до 2500 включительно — 10%).</div>
+        <div class="order-row">
+          <span class="osku" style="flex:0 0 auto;">до&nbsp;</span>
+          <input type="number" id="tierMax1" inputmode="numeric" style="flex:0 0 96px;"> <span class="oprice">₽ →</span>
+          <input type="number" id="tierPct1" inputmode="numeric" style="flex:0 0 64px;"> <span class="oprice">%</span>
+        </div>
+        <div class="order-row">
+          <span class="osku" style="flex:0 0 auto;">до&nbsp;</span>
+          <input type="number" id="tierMax2" inputmode="numeric" style="flex:0 0 96px;"> <span class="oprice">₽ →</span>
+          <input type="number" id="tierPct2" inputmode="numeric" style="flex:0 0 64px;"> <span class="oprice">%</span>
+        </div>
+        <div class="order-row">
+          <span class="osku" style="flex:1;">свыше верхнего порога →</span>
+          <input type="number" id="tierPct3" inputmode="numeric" style="flex:0 0 64px;"> <span class="oprice">%</span>
+        </div>
+        <button class="btn primary" style="margin-top:var(--sp-3);" onclick="saveCommTiers()"><svg class="icon"><use href="#i-check"/></svg>Сохранить ставки</button>
+      </div>
+
       <div class="card">
         <div class="card-head"><span class="t-eyebrow">Звуки сканирования</span></div>
         <div id="soundRows"></div>
@@ -870,7 +893,7 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Короткий файл до 400 КБ: mp3, wav или ogg. Пока свой звук не загружен, звучит стандартный сигнал. Загруженные звуки уезжают на другие ваши устройства вместе с данными.</div>
       </div>
 
-      <div class="card">
+      <div class="card" data-emp="1">
         <div class="card-head"><span class="t-eyebrow">Синхронизация</span></div>
         <div class="alert" id="syncStatusBox" style="margin-top:0;"></div>
         <div class="btn-row" style="margin-top:var(--sp-3);">
@@ -879,6 +902,18 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         </div>
         <button class="btn ghost" style="margin-top:8px;" onclick="syncSignOut()"><svg class="icon"><use href="#i-x"/></svg>Выйти на этом устройстве</button>
         <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Данные хранятся и на устройстве, и на сервере. Без сети приложение работает как обычно, а накопленное уходит при первой связи.</div>
+      </div>
+
+      <div class="card" id="membersCard">
+        <div class="card-head"><span class="t-eyebrow">Партнёры</span></div>
+        <div class="t-caption" style="margin-bottom:8px;color:var(--text-tertiary);">Дайте партнёру этот код. Он ставит приложение → на входе жмёт «Войти как партнёр» → вводит код и придумывает свой логин с паролем. Партнёр видит склад, историю и баланс (сколько вы ему должны), но ничего не редактирует.</div>
+        <div class="field-row">
+          <input type="text" id="inviteCodeView" readonly style="font-family:var(--font-mono);font-size:18px;letter-spacing:.14em;text-align:center;text-transform:uppercase;">
+          <button class="btn ghost sm" style="width:auto;white-space:nowrap;" onclick="copyInviteCode()">Копировать</button>
+        </div>
+        <button class="btn ghost" style="margin-top:8px;" onclick="rotateInvite()"><svg class="icon"><use href="#i-x"/></svg>Сменить код</button>
+        <div class="t-caption" style="margin:6px 0 var(--sp-3);color:var(--text-tertiary);">Сменить код — старые приглашения перестанут работать. Уже вошедшие сотрудники останутся.</div>
+        <div id="membersList"></div>
       </div>
 
       <div class="card">
@@ -961,6 +996,76 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
       </div>
     </section>
 
+    <!-- БАЛАНС / КОМИССИЯ ПАРТНЁРОВ -->
+    <section id="sec-balance">
+      <div class="page-head"><h2 id="balHead">Баланс партнёров</h2><p id="balSub">Начисляется автоматически с каждого «Расхода» на Панели</p></div>
+
+      <datalist id="employeesList"></datalist>
+
+      <!-- только владелец: ставки и учёт выплат -->
+      <div id="balOwnerTools">
+        <div class="card">
+          <div class="card-head"><span class="t-eyebrow">Ставки комиссии</span></div>
+          <div id="commTiersSummary" class="t-small"></div>
+          <div class="t-caption" style="margin-top:8px;color:var(--text-tertiary);">С каждой продажи в «Расходе» партнёрам начисляется процент по сумме продажи (кол-во × цена). Пороги и проценты — в Настройках.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="t-eyebrow">Записать выплату партнёрам</span></div>
+          <div class="field"><label>Партнёр (необязательно)</label><input type="text" id="payEmployee" list="employeesList" placeholder="оставьте пустым — на всех"></div>
+          <div class="filter-row">
+            <input type="date" id="payDate" aria-label="Дата выплаты">
+            <input type="number" id="payAmount" inputmode="numeric" placeholder="Сумма, ₽">
+          </div>
+          <div class="field" style="margin-top:8px;"><label>Комментарий (необязательно)</label><input type="text" id="payNote" placeholder="Например: наличными"></div>
+          <button class="btn primary" onclick="addPayout()"><svg class="icon"><use href="#i-check"/></svg>Записать выплату</button>
+        </div>
+      </div>
+
+      <div class="period-seg">
+        <button class="active" id="balPeriodBtn1" onclick="renderBalance(1,this)">Сегодня</button>
+        <button id="balPeriodBtnYesterday" onclick="renderBalance('yesterday',this)">Вчера</button>
+        <button id="balPeriodBtn7" onclick="renderBalance(7,this)">Неделя</button>
+        <button id="balPeriodBtn30" onclick="renderBalance(30,this)">Месяц</button>
+        <button id="balPeriodBtnAll" onclick="renderBalance(null,this)">Всё</button>
+        <button id="balPeriodBtnRange" class="period-cal" onclick="openRangeModal('balance')" aria-label="Выбрать свой период"><svg class="icon"><use href="#i-calendar"/></svg></button>
+      </div>
+      <div class="t-caption" id="balCustomRangeLabel" style="display:none;margin:-4px 0 var(--sp-3);color:var(--accent-strong);"></div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">Итог за период</span></div>
+        <div id="balSummary"></div>
+      </div>
+
+      <div class="card" id="balByEmployeeCard" hidden>
+        <div class="card-head"><span class="t-eyebrow">По партнёрам</span></div>
+        <div id="balByEmployee"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">По дням</span></div>
+        <div id="balByDay"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="t-eyebrow">По вилкам ставок</span></div>
+        <div id="balByTier"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <span class="t-eyebrow">Начисления</span>
+          <button class="btn ghost sm" style="width:auto;" onclick="exportBalanceCSV()"><svg class="icon"><use href="#i-download"/></svg>CSV</button>
+        </div>
+        <div id="balOrdersList"></div>
+      </div>
+
+      <div class="card" id="balPayoutsCard">
+        <div class="card-head"><span class="t-eyebrow">Выплаты</span></div>
+        <div id="balPayoutsList"></div>
+      </div>
+    </section>
+
   </main>
 
   <nav class="bottom">
@@ -971,6 +1076,7 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
     <button onclick="showSection('history',this)"><svg class="icon"><use href="#i-clock"/></svg>История</button>
     <button onclick="showSection('stats',this)"><svg class="icon"><use href="#i-chart"/></svg>Статист.</button>
     <button onclick="showSection('finance',this)"><svg class="icon"><use href="#i-wallet"/></svg>Расходы</button>
+    <button onclick="showSection('balance',this)"><svg class="icon"><use href="#i-coins"/></svg>Баланс</button>
   </nav>
 </div>
 
@@ -1055,11 +1161,24 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
       <div class="field-error" id="pinError"></div>
     </div>
 
+    <!-- Поля партнёра: код приглашения от владельца + своё имя -->
+    <div id="empFields" hidden>
+      <div class="auth-field">
+        <label for="inviteCodeInput">Код приглашения</label>
+        <input type="text" id="inviteCodeInput" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="6 символов от владельца">
+      </div>
+      <div class="auth-field">
+        <label for="empNameInput">Ваше имя</label>
+        <input type="text" id="empNameInput" autocomplete="name" placeholder="как вас записать">
+      </div>
+    </div>
+
     <button class="btn primary auth-submit" id="pinSubmit" onclick="submitPin()"><svg class="icon"><use href="#i-check"/></svg>Войти</button>
+    <button type="button" class="auth-skip" id="empToggleBtn" onclick="toggleEmployeeLogin()">Войти как партнёр</button>
     <button type="button" class="auth-skip" onclick="skipPin()">Работать без синхронизации</button>
     <!-- До входа в настройки не попасть, а клавиатура нужна уже здесь -->
     <button type="button" class="auth-skip" id="authKbBtn" onclick="cycleSkbMode()">Клавиатура: сама</button>
-    <div class="auth-note">Входите впервые? Придумайте логин и пароль — склад привяжется к ним.</div>
+    <div class="auth-note" id="authNote">Входите впервые? Придумайте логин и пароль — склад привяжется к ним.</div>
   </div>
 </div>
 
@@ -1127,7 +1246,7 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
 <script>
 let db;
 const DB_NAME = 'pro_fonari_sklad';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 function openDB(){
   return new Promise((resolve, reject)=>{
@@ -1140,6 +1259,15 @@ function openDB(){
       if(!d.objectStoreNames.contains('settings')) d.createObjectStore('settings',{keyPath:'key'});
       if(!d.objectStoreNames.contains('reports')) d.createObjectStore('reports',{keyPath:'id',autoIncrement:true});
       if(!d.objectStoreNames.contains('adspend')) d.createObjectStore('adspend',{keyPath:'dateKey'});
+      /* Заказы и выплаты для расчёта комиссии сотрудников. Ключ — uid
+         с устройства, как у операций, чтобы одна запись не задвоилась
+         при синхронизации. */
+      if(!d.objectStoreNames.contains('orders')){
+        d.createObjectStore('orders',{keyPath:'uid'}).createIndex('dirty','dirty');
+      }
+      if(!d.objectStoreNames.contains('payouts')){
+        d.createObjectStore('payouts',{keyPath:'uid'}).createIndex('dirty','dirty');
+      }
 
       /* Версия 3 готовит базу к синхронизации между устройствами.
          Записям нужен ключ, одинаковый на всех устройствах: автоинкремент
@@ -1300,7 +1428,7 @@ function get(store,key){ return new Promise((res,rej)=>{ const r = tx(store).get
 /* Синхронизируемые хранилища помечаются при каждой локальной правке:
    dirty=1 значит «ещё не уехало на сервер». Записи, пришедшие с сервера,
    кладутся с fromSync:true — иначе они тут же уехали бы обратно. */
-const SYNCED_STORES = ['products','history','adspend'];
+const SYNCED_STORES = ['products','history','adspend','orders','payouts'];
 function put(store,val,opts){
   opts = opts || {};
   if(SYNCED_STORES.indexOf(store) !== -1){
@@ -1350,8 +1478,8 @@ function applyRemoteSettings(incoming){
   if(title) title.textContent = String(settings.company || 'Склад').toUpperCase();
   applyHeaderLogo();
   loadSettingsForm();
-  // звуки могли смениться — сбрасываем разогретые проигрыватели
-  Object.keys(soundPlayers).forEach(k=> delete soundPlayers[k]);
+  // звуки могли смениться — пересобираем пулы под новый файл
+  refreshCustomSounds();
 }
 
 async function getAllLive(store){
@@ -1574,6 +1702,8 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   await renderStock(); await renderInvList(); await renderHistory(); await renderStats(); await renderReports();
   await updateProductCountPill();
   loadSettingsForm();
+  warmCustomSounds();   // пулы <audio> готовы ещё до первого скана
+  { const el = document.getElementById('payDate'); if(el && !el.value) el.value = todayDateKey(); }
   renderStorageStatus();
 
   const elapsed = Date.now() - splashStart;
@@ -1614,6 +1744,7 @@ async function refreshAfterSync(){
   await updateProductCountPill();
   const active = document.querySelector('main section.active');
   if(active && active.id === 'sec-finance') await renderFinance(currentFinancePeriod, null);
+  if(active && active.id === 'sec-balance') await renderBalance(currentBalancePeriod, null);
 }
 
 /* Пароль на телефоне набирают вслепую и часто ошибаются — даём посмотреть,
@@ -1649,8 +1780,12 @@ function openPinModal(mode){
       : 'Один вход на телефон, планшет и компьютер — данные едут между ними сами.';
   const note = document.querySelector('.auth-note');
   if(note) note.style.display = isChange ? 'none' : 'block';
-  const skip = document.querySelector('.auth-skip');
-  if(skip) skip.style.display = isChange ? 'none' : 'block';
+  document.querySelectorAll('.auth-skip').forEach(b=>{ b.style.display = isChange ? 'none' : 'block'; });
+
+  // сброс режима «вход сотрудника»
+  bg.dataset.emp = '0';
+  const ef = document.getElementById('empFields'); if(ef) ef.hidden = true;
+  const etb = document.getElementById('empToggleBtn'); if(etb) etb.textContent = 'Войти как сотрудник';
 
   bg.dataset.mode = mode || 'login';
   bg.classList.add('show');
@@ -1690,6 +1825,24 @@ async function submitPin(){
     if(!res.ok){ pinFail(res.error); return; }
     closePinModal();
     toast('Пароль изменён. На других устройствах войдите заново');
+    return;
+  }
+
+  /* Вход сотрудника: своя учётная запись + присоединение по коду. */
+  if(bg && bg.dataset.emp === '1'){
+    const code = (document.getElementById('inviteCodeInput').value || '').trim();
+    const empName = (document.getElementById('empNameInput').value || '').trim();
+    if(!code){ pinFail('Введите код приглашения'); return; }
+    if(!empName){ pinFail('Укажите ваше имя'); return; }
+    setSyncLine('Проверяем…');
+    const si = await Sync.signIn(login, password);
+    if(!si.ok){ pinFail(si.error || 'Не удалось войти'); setSyncLine(describeSync('signed-out')); return; }
+    const jr = await Sync.joinWorkspace(code, empName);
+    document.getElementById('pinSubmit').disabled = false;
+    if(!jr.ok){ pinFail(jr.error || 'Не удалось присоединиться по коду'); return; }
+    closePinModal();
+    toast('Вы вошли как партнёр');
+    await Sync.start();
     return;
   }
 
@@ -1747,6 +1900,7 @@ async function initSync(){
 
   const started = await Sync.start();
   if(!started) openPinModal('login');
+  await applyRoleUI();
 }
 
 function hideSplash(){
@@ -1768,6 +1922,8 @@ async function updateProductCountPill(){
 }
 
 function showSection(name, btn){
+  // сотруднику доступны только его вкладки
+  if(isEmployee() && EMP_SECTIONS.indexOf(name) === -1){ name = 'stock'; btn = null; }
   document.querySelectorAll('main section').forEach(s=>s.classList.remove('active'));
   document.getElementById('sec-'+name).classList.add('active');
   document.querySelectorAll('nav.bottom button').forEach(b=>b.classList.remove('active'));
@@ -1781,6 +1937,7 @@ function showSection(name, btn){
   if(name==='stats') { renderStats(); renderReports(); }
   if(name==='settings'){ renderStorageStatus(); renderSyncStatusBox(); renderSoundRows(); }
   if(name==='finance') { renderFinance(currentFinancePeriod, null); }
+  if(name==='balance') { renderBalance(currentBalancePeriod, null); }
 }
 function openSettings(){
   closeChromeMenu();
@@ -2605,13 +2762,58 @@ async function applyStockOperation(p, barcode, qty, opts){
     return false;
   }
 
-  await logHistory(currentMode, barcode, p, qty);
+  /* Звук — сразу, до записи в базу: на iOS «окно жеста» закрывается за
+     доли секунды, а дальше идут await'ы к IndexedDB. Запись ниже на
+     практике не срывается, а отклик по скану должен быть мгновенным. */
+  playSound(currentMode);
+
+  const histUid = await logHistory(currentMode, barcode, p, qty);
+  /* Каждый «Расход» = продажа, с неё партнёрам идёт процент. Начисление
+     создаётся тут же и появляется у партнёров в «Балансе». */
+  if(currentMode === 'Расход') await createSaleCommission(p, qty, histUid);
   p.totalStock = await recalcStock(p.sku);
   showLastProduct(p);
   showStatus(p.name+' — '+currentMode.toLowerCase()+' '+sign+displayQty+' шт.', currentMode==='Расход' ? 'danger' : 'success');
-  playSound(currentMode);
   await renderStock();
+  const bal = document.querySelector('main section.active');
+  if(bal && bal.id === 'sec-balance') renderBalance(currentBalancePeriod, null);
   return true;
+}
+
+/* Начисление партнёрам с одной продажи. Сумма = кол-во × цена продажи,
+   ставка — по вилке (см. Настройки). Пишется снимком: смена ставок позже
+   прошлые начисления не трогает. Начисление общее — его видят все партнёры. */
+async function createSaleCommission(p, qty, opUid){
+  const price = Number(p.price) || 0;
+  const amount = price * (Number(qty) || 0);
+  if(amount <= 0) return;
+  const ratePercent = rateForAmount(amount);
+  const now = Date.now();
+  await put('orders', {
+    uid: newUid(),
+    opUid: opUid || '',
+    source: 'sale',
+    employee: '',            // общий пул — начисление видят все партнёры
+    memberId: undefined,
+    amount,
+    ratePercent,
+    commission: Math.round(amount * ratePercent) / 100,
+    note: 'Продажа: ' + p.name,
+    timestamp: now,
+    dateKey: todayDateKey(),
+    dateDisplay: new Date(now).toLocaleDateString('ru-RU')
+  });
+  if(window.Sync && Sync.syncNow) Sync.syncNow('продажа → комиссия');
+}
+
+/* Убирает начисления, привязанные к операции (когда операцию удалили). */
+async function removeSaleCommission(opUid){
+  if(!opUid) return;
+  const all = await getAllLive('orders');
+  for(const o of all){
+    if(o.opUid === opUid) await softDelete('orders', o.uid);
+  }
+  if(window.Sync && Sync.syncNow) Sync.syncNow('удалена продажа');
 }
 
 /* ---- камера: подтверждение количества перед применением ---- */
@@ -2662,11 +2864,18 @@ function showLastProduct(p){
    если AudioContext создан не «внутри» пользовательского жеста, либо создаём
    заново на каждый скан — а к моменту async-операций жест уже «протух»). */
 let audioCtx = null;
+/* iPhone со сканером — это клавиатура без касаний. Системе такого жеста
+   мало, чтобы разрешить проигрывание <audio> из кода: каждый элемент нужно
+   один раз «завести» коротким беззвучным воспроизведением ВНУТРИ жеста.
+   Флаг помнит, что это уже сделано; сбрасывается при возврате из фона —
+   iOS там разрешение снимает. */
+let customSoundsPrimed = false;
 function unlockAudio(){
   if(!audioCtx){
-    try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+    try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
   }
-  if(audioCtx.state === 'suspended'){ audioCtx.resume().catch(()=>{}); }
+  if(audioCtx && audioCtx.state === 'suspended'){ audioCtx.resume().catch(()=>{}); }
+  primeCustomSounds();
 }
 /* Без {once:true}: iOS усыпляет звук, когда приложение уходит в фон или
    просто лежит без дела, и одной разблокировки на весь запуск не хватает —
@@ -2674,6 +2883,16 @@ function unlockAudio(){
    касание и на каждый символ сканера. */
 document.addEventListener('pointerdown', unlockAudio);
 document.addEventListener('keydown', unlockAudio);
+/* Вернулись из фона — и AudioContext, и разрешение на <audio> у iOS могли
+   сброситься. Помечаем, что элементы надо завести заново при первом же
+   символе сканера, и сразу будим контекст. */
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible'){
+    customSoundsPrimed = false;
+    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+  }
+});
+window.addEventListener('focus', ()=>{ customSoundsPrimed = false; });
 /* Часть браузеров выдаёт постоянное хранилище только после жеста
    пользователя — поэтому пробуем ещё раз при первом касании. */
 document.addEventListener('pointerdown', ()=>{ renderStorageStatus(); }, {once:true});
@@ -2687,7 +2906,9 @@ function beep(freq, startSec, durSec, gainVal){
       const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
       o.connect(g); g.connect(audioCtx.destination);
       o.frequency.value = freq; g.gain.value = gainVal;
-      const t0 = audioCtx.currentTime + startSec;
+      /* +0.03с запаса: тон, поставленный ровно на currentTime сразу после
+         resume(), iOS нередко проглатывает — контекст ещё «разгоняется». */
+      const t0 = audioCtx.currentTime + startSec + 0.03;
       o.start(t0); o.stop(t0 + durSec);
     }catch(e){}
   };
@@ -2713,30 +2934,117 @@ const SOUND_KINDS = [
   {key:'error',  title:'Ошибка',  note:'двойной низкий сигнал'}
 ];
 const soundPlayers = {};
+/* data:-URL звука на iOS проигрывается ненадёжно (особенно крупный) —
+   один раз переводим его в blob-URL и дальше играем уже его. */
+const soundObjectUrls = {};
 
 function customSound(key){
   return (settings.sounds && settings.sounds[key]) ? settings.sounds[key].data : null;
 }
+
+/* Blob-URL для звука key. Пересобирается, только если сам файл сменился. */
+function soundSrcFor(key){
+  const rec = settings.sounds && settings.sounds[key];
+  if(!rec || !rec.data){
+    if(soundObjectUrls[key]){ try{ URL.revokeObjectURL(soundObjectUrls[key].url); }catch(e){} delete soundObjectUrls[key]; }
+    return null;
+  }
+  if(soundObjectUrls[key] && soundObjectUrls[key].from === rec.data) return soundObjectUrls[key].url;
+  if(soundObjectUrls[key]){ try{ URL.revokeObjectURL(soundObjectUrls[key].url); }catch(e){} }
+  try{
+    const m = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(rec.data);
+    if(!m) return rec.data;
+    const type = m[1] || 'audio/mpeg';
+    let blob;
+    if(m[2]){
+      const bin = atob(m[3]);
+      const arr = new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+      blob = new Blob([arr], {type});
+    } else {
+      blob = new Blob([decodeURIComponent(m[3])], {type});
+    }
+    const url = URL.createObjectURL(blob);
+    soundObjectUrls[key] = {from: rec.data, url};
+    return url;
+  }catch(e){ return rec.data; }
+}
+
+/* Пул из трёх <audio> на каждый звук: сканеру часто прилетает два товара
+   подряд, а повторный запуск ещё звучащего элемента браузер молча
+   отбрасывает — сигнал пропускался. */
+function ensureSoundEntry(key){
+  const src = soundSrcFor(key);
+  if(!src){ delete soundPlayers[key]; return null; }
+  let entry = soundPlayers[key];
+  if(!entry || entry.src !== src){
+    const mk = ()=>{ const a = new Audio(src); a.preload = 'auto'; try{ a.load(); }catch(e){} return a; };
+    entry = {src, pool:[mk(), mk(), mk()], next:0};
+    soundPlayers[key] = entry;
+    customSoundsPrimed = false;   // новый пул — надо снова завести под iOS
+  }
+  return entry;
+}
+
+/* Заводим пулы заранее, ещё до первого скана — тогда primeCustomSounds()
+   на первом же символе сканера успеет их «благословить». */
+function warmCustomSounds(){
+  SOUND_KINDS.forEach(k=> ensureSoundEntry(k.key));
+}
+
+/* Полный сброс — когда звук поменяли здесь или он приехал с другого
+   устройства синхронизацией. */
+function refreshCustomSounds(){
+  Object.keys(soundObjectUrls).forEach(k=>{ try{ URL.revokeObjectURL(soundObjectUrls[k].url); }catch(e){} delete soundObjectUrls[k]; });
+  Object.keys(soundPlayers).forEach(k=> delete soundPlayers[k]);
+  customSoundsPrimed = false;
+  warmCustomSounds();
+}
+
+/* Прогоняет каждый элемент пула коротким muted-воспроизведением ВНУТРИ
+   жеста пользователя. После этого iOS разрешает запускать эти же элементы
+   из кода — по скану. Один раз за «сеанс видимости». */
+function primeCustomSounds(){
+  if(customSoundsPrimed) return;
+  const entries = Object.values(soundPlayers);
+  if(!entries.length) return;
+  let ok = true;
+  entries.forEach(entry=>{
+    entry.pool.forEach(a=>{
+      try{
+        a.muted = true;
+        const p = a.play();
+        if(p && p.then){
+          p.then(()=>{ try{ a.pause(); a.currentTime = 0; }catch(e){} a.muted = false; })
+           .catch(()=>{ a.muted = false; ok = false; });
+        } else {
+          try{ a.pause(); a.currentTime = 0; }catch(e){}
+          a.muted = false;
+        }
+      }catch(e){ a.muted = false; ok = false; }
+    });
+  });
+  if(ok) customSoundsPrimed = true;
+}
+
 /* Возвращает false, если своего звука нет — тогда играет встроенный. */
 function playCustomSound(key){
-  const src = customSound(key);
-  if(!src) return false;
+  const entry = ensureSoundEntry(key);
+  if(!entry) return false;
+  const player = entry.pool[entry.next];
+  entry.next = (entry.next + 1) % entry.pool.length;
+  try{ player.currentTime = 0; }catch(e){}
   try{
-    let entry = soundPlayers[key];
-    if(!entry || entry.src !== src){
-      /* Одного проигрывателя мало: сканеру часто прилетает два товара
-         подряд, а повторный запуск ещё звучащего звука браузер молча
-         отбрасывает — сигнал пропускался. Держим три по кругу. */
-      entry = {src, pool:[new Audio(src), new Audio(src), new Audio(src)], next:0};
-      soundPlayers[key] = entry;
-    }
-    const player = entry.pool[entry.next];
-    entry.next = (entry.next + 1) % entry.pool.length;
-    try{ player.currentTime = 0; }catch(e){}
     const p = player.play();
-    if(p && p.catch) p.catch(()=>{});
-    return true;
+    if(p && p.catch) p.catch(()=>{
+      /* iOS не дал воспроизвести — значит элемент «протух». Заводим заново
+         и пробуем ещё раз тем же элементом. */
+      customSoundsPrimed = false;
+      primeCustomSounds();
+      try{ player.currentTime = 0; const p2 = player.play(); if(p2 && p2.catch) p2.catch(()=>{}); }catch(e){}
+    });
   }catch(e){ return false; }
+  return true;
 }
 
 function playSound(mode){
@@ -2798,7 +3106,7 @@ function handleSoundUpload(e){
     settings.sounds = settings.sounds || {};
     settings.sounds[key] = {name: file.name, data: ev.target.result};
     await saveAppSettings();
-    delete soundPlayers[key];
+    refreshCustomSounds();
     renderSoundRows();
     toast('Звук сохранён');
     previewSound(key);
@@ -2808,7 +3116,7 @@ function handleSoundUpload(e){
 async function resetSound(key){
   if(settings.sounds) delete settings.sounds[key];
   await saveAppSettings();
-  delete soundPlayers[key];
+  refreshCustomSounds();
   renderSoundRows();
   toast('Вернули стандартный звук');
 }
@@ -2857,8 +3165,9 @@ async function logHistory(type, barcode, p, qty, opts){
   const delta = (opts.delta !== undefined)
       ? opts.delta
       : (type === 'Расход' ? -Math.abs(qty) : Math.abs(qty));
+  const uid = newUid();
   await put('history', {
-    uid: newUid(),
+    uid,
     date: now.toLocaleDateString('ru-RU'),
     time: now.toLocaleTimeString('ru-RU'),
     timestamp: now.getTime(),
@@ -2868,6 +3177,7 @@ async function logHistory(type, barcode, p, qty, opts){
     stockAfter: (Number(p.totalStock)||0) + delta,
     snap: priceSnapshot(p)
   });
+  return uid;
 }
 
 async function renderStock(){
@@ -2901,9 +3211,24 @@ async function renderStock(){
     updateInvoiceSelCount();
     return;
   }
+  const emp = isEmployee();
   list.innerHTML = filtered.map(p=>{
     let cls='';
     if(p.totalStock<=0) cls='zero'; else if(p.totalStock<=settings.lowStock) cls='low';
+    if(emp){
+      /* Кабинет сотрудника: только просмотр. Видно название, остаток и
+         цену продажи; себестоимость, поставщик и правка скрыты. */
+      return `<div class="row-item">
+        <div class="rmain">
+          <div class="rname">${escapeHtml(p.name)}</div>
+          <div class="rmeta">${escapeHtml(p.sku)}${p.barcode?' · '+escapeHtml(p.barcode):''}</div>
+        </div>
+        <div class="rside">
+          <span class="rval ${cls}">${p.totalStock} шт</span>
+          <span class="t-caption" style="white-space:nowrap;">${Math.round(p.price)} ₽</span>
+        </div>
+      </div>`;
+    }
     return `<div class="row-item">
       <input type="checkbox" class="inv-chk" aria-label="Выбрать для накладной" data-sku="${escapeAttr(p.sku)}" ${invoiceSelection.has(p.sku)?'checked':''} onchange="toggleInvoiceSelection('${escapeAttr(p.sku)}', this.checked)">
       <div class="rmain">
@@ -3118,6 +3443,18 @@ async function renderCard(){
   const p = all.find(x=> String(x.barcode)===q || String(x.sku)===q || x.name.toLowerCase().includes(ql));
   if(!p){ box.innerHTML = emptyState('i-alert','Ничего не найдено','Проверьте штрихкод или добавьте товар на «Складе».'); return; }
 
+  if(isEmployee()){
+    /* Кабинет сотрудника: без себестоимости и статистики продаж. */
+    box.innerHTML = `
+      <div class="row-item"><div class="rmain"><div class="rname">${escapeHtml(p.name)}</div></div><span class="rval">${p.totalStock} шт</span></div>
+      <div class="row-item"><div class="rmain">SKU</div><span class="rval">${escapeHtml(p.sku)}</span></div>
+      <div class="row-item"><div class="rmain">Штрихкод</div><span class="rval">${escapeHtml(p.barcode||'—')}</span></div>
+      <div class="row-item"><div class="rmain">Категория</div><span class="rval">${escapeHtml(p.category||'—')}</span></div>
+      <div class="row-item"><div class="rmain">Цена продажи</div><span class="rval">${p.price} ₽</span></div>
+    `;
+    return;
+  }
+
   const hist = await getAllLive('history');
   const forSku = hist.filter(h=>h.sku===p.sku);
   const prihodOps = forSku.filter(h=>h.type==='Приход');
@@ -3178,10 +3515,10 @@ async function handleInventoryScan(barcode){
   const item = all.find(i=> String(i.barcode).trim() === code)
             || all.find(i=> String(i.sku).trim().toLowerCase() === low);   // руками удобнее по SKU
   if(!item){ playErrorSound(); showInvStatus('Не в списке инвентаризации: '+barcode, false); return; }
+  playSound();   // до await'ов — пока «жест» на iOS ещё в силе
   item.factQty += 1;
   await put('inventory', item);
   showInvStatus('Посчитано: '+item.name+' ('+item.factQty+' шт)', true);
-  playSound();
   await renderInvList();
 }
 
@@ -3292,11 +3629,19 @@ async function renderHistory(){
       : emptyState('i-clock','Операций пока нет','Отсканируйте первый товар на «Панели», и он появится здесь.');
     return;
   }
+  const emp = isEmployee();
   list.innerHTML = filtered.slice(0,200).map(h=>{
     let display, cls;
     if(h.type==='Расход'){ display = '−'+Math.abs(h.qty); cls='neg'; }
     else if(h.type==='Приход'){ display = '+'+Math.abs(h.qty); cls='pos'; }
     else { display = (h.qty>0?'+':'')+h.qty; cls = h.qty>=0?'pos':'neg'; }
+    if(emp){
+      return `
+      <div class="row-item">
+        <div class="rmain"><div class="rname">${escapeHtml(h.name)}</div><div class="rmeta">${h.date} · ${h.time} · ${h.type}</div></div>
+        <div class="rside"><span class="rval ${cls}">${display} шт</span></div>
+      </div>`;
+    }
     return `
     <div class="row-item">
       <input type="checkbox" class="hist-chk" aria-label="Выбрать запись" ${historySelection.has(h.id)?'checked':''} onchange="toggleHistorySelection(${h.id}, this.checked)">
@@ -3359,7 +3704,10 @@ async function deleteSelectedHistoryWithCorrection(){
     const newQty = Math.round(Number(input));
     if(isNaN(newQty) || newQty < 0){ toast('Некорректное число для «'+name+'» — пропущено'); skippedSkus.push(name); continue; }
 
-    for(const h of entries){ await softDelete('history', h.id); }
+    for(const h of entries){
+      await softDelete('history', h.id);
+      if(h.type === 'Расход') await removeSaleCommission(h.uid);
+    }
 
     if(p){
       const current = await recalcStock(p.sku);
@@ -3387,6 +3735,7 @@ async function deleteHistoryEntry(id){
   /* Остаток больше не нужно «откручивать» руками: он считается по
      операциям, поэтому достаточно убрать запись и пересчитать. */
   await softDelete('history', id);
+  if(entry.type === 'Расход') await removeSaleCommission(entry.uid);   // и связанное начисление партнёрам
   const p = await recalcStock(entry.sku);
   toast(p !== null ? 'Запись удалена, остаток пересчитан' : 'Запись удалена (товар уже удалён со склада)');
   await renderHistory();
@@ -3893,7 +4242,9 @@ var historyRange = null;   // {start, end} или null — показывать 
 
 function openRangeModal(target){
   calTarget = target || 'finance';
-  const current = (calTarget === 'history') ? historyRange : currentFinancePeriod;
+  const current = (calTarget === 'history') ? historyRange
+                : (calTarget === 'balance') ? currentBalancePeriod
+                : currentFinancePeriod;
   const isRange = current && typeof current === 'object';
 
   const base = isRange ? new Date(current.start) : new Date();
@@ -3906,7 +4257,9 @@ function openRangeModal(target){
   }
 
   document.querySelector('#rangeModalBg h3').textContent =
-      (calTarget === 'history') ? 'Даты в истории' : 'Свой период';
+      (calTarget === 'history') ? 'Даты в истории'
+    : (calTarget === 'balance') ? 'Период баланса'
+    : 'Свой период';
   document.getElementById('calReset').style.display = (calTarget === 'history') ? 'flex' : 'none';
 
   renderCal();
@@ -4019,6 +4372,10 @@ async function applyCalRange(){
     historyRange = range;
     updateHistoryRangeLabel();
     await renderHistory();
+    return;
+  }
+  if(calTarget === 'balance'){
+    await renderBalance(range, null);
     return;
   }
   await renderFinance(range, null);
@@ -4435,6 +4792,422 @@ async function generateABC(){
     </div>`).join('');
 }
 
+/* ============================================================
+   БАЛАНС / КОМИССИЯ СОТРУДНИКОВ
+   Заказы вбивает владелец: сумму и имя сотрудника. Ставка берётся по
+   сумме всего заказа и пишется в заказ снимком — меняя пороги позже,
+   прошлые начисления не трогаем. «Баланс» = начислено − выплачено.
+   ============================================================ */
+const DEFAULT_COMM_TIERS = [
+  {max: 2500, percent: 10},
+  {max: 5000, percent: 8},
+  {max: null, percent: 6}
+];
+function commissionTiers(){
+  const t = (settings && Array.isArray(settings.commissionTiers)) ? settings.commissionTiers : null;
+  return (t && t.length) ? t : DEFAULT_COMM_TIERS;
+}
+/* Порог включается в нижнюю ставку: заказ ровно на 2500 → 10%. */
+function rateForAmount(amount){
+  const a = Number(amount) || 0;
+  const tiers = commissionTiers();
+  for(const t of tiers){
+    if(t.max === null || t.max === undefined || a <= Number(t.max)) return Number(t.percent) || 0;
+  }
+  return Number(tiers[tiers.length - 1].percent) || 0;
+}
+const rub = n => Math.round(Number(n) || 0).toLocaleString('ru-RU');
+
+function commTiersText(){
+  const t = commissionTiers();
+  let prev = 0;
+  return t.map(tier=>{
+    if(tier.max === null || tier.max === undefined){
+      return 'свыше ' + rub(prev) + ' ₽ → ' + tier.percent + '%';
+    }
+    const lo = prev > 0 ? (rub(prev) + '–') : 'до ';
+    const s = lo + rub(tier.max) + ' ₽ → ' + tier.percent + '%';
+    prev = tier.max;
+    return s;
+  }).join('  ·  ');
+}
+function updateCommTiersSummary(){
+  const el = document.getElementById('commTiersSummary');
+  if(el) el.textContent = commTiersText();
+}
+function loadCommTiersForm(){
+  const t = commissionTiers();
+  const g = (i, def)=> t[i] || def;
+  const set = (id, v)=>{ const el = document.getElementById(id); if(el) el.value = v; };
+  const t1 = g(0, DEFAULT_COMM_TIERS[0]), t2 = g(1, DEFAULT_COMM_TIERS[1]), t3 = g(2, DEFAULT_COMM_TIERS[2]);
+  set('tierMax1', t1.max == null ? 2500 : t1.max);
+  set('tierPct1', t1.percent == null ? 10 : t1.percent);
+  set('tierMax2', t2.max == null ? 5000 : t2.max);
+  set('tierPct2', t2.percent == null ? 8 : t2.percent);
+  set('tierPct3', t3.percent == null ? 6 : t3.percent);
+}
+async function saveCommTiers(){
+  const val = id => Number(document.getElementById(id).value);
+  const max1 = val('tierMax1'), pct1 = val('tierPct1');
+  const max2 = val('tierMax2'), pct2 = val('tierPct2'), pct3 = val('tierPct3');
+  if(!(max1 > 0) || !(max2 > max1)){ toast('Верхний порог должен быть больше нижнего'); return; }
+  if([pct1, pct2, pct3].some(p=> !(p >= 0 && p <= 100))){ toast('Проценты — от 0 до 100'); return; }
+  settings.commissionTiers = [
+    {max: max1, percent: pct1},
+    {max: max2, percent: pct2},
+    {max: null, percent: pct3}
+  ];
+  await saveAppSettings();
+  updateCommTiersSummary();
+  toast('Ставки сохранены. Прошлые заказы не пересчитываются');
+}
+
+/* Начисления создаёт «Расход» на Панели — вручную их не вводят. */
+
+async function addPayout(){
+  const employee = document.getElementById('payEmployee').value.trim();
+  const amount = Number(document.getElementById('payAmount').value);
+  if(!(amount > 0)){ toast('Введите сумму выплаты'); return; }
+  const dateStr = document.getElementById('payDate').value || todayDateKey();
+  const ts = new Date(dateStr + 'T12:00:00').getTime();
+  await put('payouts', {
+    uid: newUid(), employee, memberId: wsMemberIdByName(employee), amount,
+    note: document.getElementById('payNote').value.trim(),
+    timestamp: ts, dateKey: dateStr,
+    dateDisplay: new Date(ts).toLocaleDateString('ru-RU')
+  });
+  document.getElementById('payAmount').value = '';
+  document.getElementById('payNote').value = '';
+  toast('Выплата записана');
+  if(window.Sync && Sync.syncNow) Sync.syncNow('новая выплата');
+  await renderBalance(currentBalancePeriod, null);
+}
+async function deleteOrder(uid){
+  if(!confirm('Убрать это начисление? (на остаток и продажу это не влияет)')) return;
+  await softDelete('orders', uid);
+  if(window.Sync && Sync.syncNow) Sync.syncNow('убрано начисление');
+  toast('Начисление убрано');
+  await renderBalance(currentBalancePeriod, null);
+}
+async function deletePayout(uid){
+  if(!confirm('Удалить эту выплату?')) return;
+  await softDelete('payouts', uid);
+  if(window.Sync && Sync.syncNow) Sync.syncNow('удалена выплата');
+  toast('Выплата удалена');
+  await renderBalance(currentBalancePeriod, null);
+}
+async function updateEmployeesDatalist(){
+  const dl = document.getElementById('employeesList');
+  if(!dl) return;
+  const names = new Set();
+  (window.__wsMembers || []).forEach(m=>{ if(m.name) names.add(m.name); });
+  (await getAllLive('orders')).forEach(o=>{ if(o.employee) names.add(o.employee); });
+  (await getAllLive('payouts')).forEach(p=>{ if(p.employee) names.add(p.employee); });
+  dl.innerHTML = [...names].sort((a,b)=> a.localeCompare(b,'ru'))
+    .map(n=> `<option value="${escapeHtml(n)}">`).join('');
+}
+
+async function computeBalance(range){
+  let allO = await getAllLive('orders');
+  let allP = await getAllLive('payouts');
+  if(isEmployee()){ allO = allO.filter(matchesEmployeeScope); allP = allP.filter(matchesEmployeeScope); }
+
+  /* Долг — величина накопительная, считаем за всё время, независимо от периода. */
+  const earnedAll = allO.reduce((s, o)=> s + (Number(o.commission) || 0), 0);
+  const paidAll   = allP.reduce((s, p)=> s + (Number(p.amount) || 0), 0);
+  const totalBalanceAll = earnedAll - paidAll;
+
+  const inRange = ts => !range || (ts >= range.start && ts <= range.end);
+  const O = allO.filter(o=> inRange(o.timestamp));
+  const P = allP.filter(p=> inRange(p.timestamp));
+
+  let ordersSum = 0, commission = 0, paid = 0;
+  const byTier = {}, byDay = {};
+
+  O.forEach(o=>{
+    const amt = Number(o.amount) || 0, com = Number(o.commission) || 0, rp = Number(o.ratePercent) || 0;
+    ordersSum += amt; commission += com;
+    const t = byTier[rp] || (byTier[rp] = {count:0, sum:0, commission:0});
+    t.count++; t.sum += amt; t.commission += com;
+    const key = o.dateKey || dateKeyOf(new Date(o.timestamp));
+    const dd = byDay[key] || (byDay[key] = {count:0, sales:0, commission:0, paid:0, ts:o.timestamp});
+    dd.count++; dd.sales += amt; dd.commission += com;
+  });
+  P.forEach(p=>{
+    paid += Number(p.amount) || 0;
+    const key = p.dateKey || dateKeyOf(new Date(p.timestamp));
+    const dd = byDay[key] || (byDay[key] = {count:0, sales:0, commission:0, paid:0, ts:p.timestamp});
+    dd.paid += Number(p.amount) || 0;
+  });
+
+  return {ordersCount: O.length, ordersSum, commission, paid, earnedAll, paidAll, totalBalanceAll, byTier, byDay};
+}
+
+function renderBalanceSummary(d){
+  const emp = isEmployee();
+  const earnLbl = emp ? 'Мне начислено за период' : 'Начислено партнёрам за период';
+  const paidLbl = emp ? 'Мне выплачено за период' : 'Выплачено партнёрам за период';
+  const totLbl  = emp ? 'Мне должны (всего)'      : 'Долг партнёрам (всего)';
+  document.getElementById('balSummary').innerHTML = `
+    <div class="receipt-row"><span class="rl">Продаж за период</span><span class="rv">${d.ordersCount}</span></div>
+    <div class="receipt-row"><span class="rl">Сумма продаж</span><span class="rv">${rub(d.ordersSum)} ₽</span></div>
+    <div class="receipt-row"><span class="rl">${earnLbl}</span><span class="rv">${rub(d.commission)} ₽</span></div>
+    <div class="receipt-row"><span class="rl">${paidLbl}</span><span class="rv">${rub(d.paid)} ₽</span></div>
+    <div class="receipt-row total"><span class="rl">${totLbl}</span><span class="rv">${rub(d.totalBalanceAll)} ₽</span></div>`;
+}
+function renderBalanceByDay(d){
+  const box = document.getElementById('balByDay');
+  if(!box) return;
+  const rows = Object.entries(d.byDay).sort((a, b)=> b[1].ts - a[1].ts);
+  if(!rows.length){ box.innerHTML = emptyLine('', 'За период движений нет'); return; }
+  box.innerHTML = rows.map(([key, x])=>{
+    const dstr = new Date(x.ts).toLocaleDateString('ru-RU');
+    const parts = [];
+    if(x.count)  parts.push(x.count + ' прод. на ' + rub(x.sales) + ' ₽');
+    if(x.paid)   parts.push('выплачено ' + rub(x.paid) + ' ₽');
+    return `<div class="row-item">
+      <div class="rmain"><div class="rname">${dstr}</div><div class="rmeta">${parts.join(' · ') || '—'}</div></div>
+      <div class="rside"><span class="rval ${x.commission>=0?'pos':''}">+${rub(x.commission)} ₽</span></div>
+    </div>`;
+  }).join('') + '<div class="t-caption" style="margin-top:8px;color:var(--text-tertiary);">Справа — начислено партнёрам за день.</div>';
+}
+function renderBalanceByTier(d){
+  const box = document.getElementById('balByTier');
+  const tiers = Object.entries(d.byTier).sort((a, b)=> Number(b[0]) - Number(a[0]));
+  if(!tiers.length){ box.innerHTML = emptyLine('', 'Заказов за период нет'); return; }
+  box.innerHTML = tiers.map(([pct, t])=> `
+    <div class="row-item">
+      <div class="rmain"><div class="rname">Ставка ${pct}%</div><div class="rmeta">${t.count} зак. · сумма ${rub(t.sum)} ₽</div></div>
+      <div class="rside"><span class="rval">${rub(t.commission)} ₽</span></div>
+    </div>`).join('');
+}
+async function renderBalanceLists(range){
+  const emp = isEmployee();
+  const inRange = ts => !range || (ts >= range.start && ts <= range.end);
+  let orders = (await getAllLive('orders')).filter(o=> inRange(o.timestamp));
+  let payouts = (await getAllLive('payouts')).filter(p=> inRange(p.timestamp));
+  if(emp){ orders = orders.filter(matchesEmployeeScope); payouts = payouts.filter(matchesEmployeeScope); }
+  orders.sort((a, b)=> b.timestamp - a.timestamp);
+  payouts.sort((a, b)=> b.timestamp - a.timestamp);
+  const del = emp ? '' : true;
+
+  const ol = document.getElementById('balOrdersList');
+  ol.innerHTML = orders.length ? orders.slice(0, 300).map(o=>{
+    const title = o.note || (o.employee ? o.employee : 'Продажа');
+    return `
+    <div class="row-item">
+      <div class="rmain">
+        <div class="rname">${escapeHtml(title)}</div>
+        <div class="rmeta">${o.dateDisplay || new Date(o.timestamp).toLocaleDateString('ru-RU')} · ${rub(o.amount)} ₽ · ставка ${o.ratePercent}%</div>
+      </div>
+      <div class="rside">
+        <span class="rval pos">+${rub(o.commission)} ₽</span>
+        ${del ? `<button class="icon-btn" onclick="deleteOrder('${escapeAttr(o.uid)}')" aria-label="Убрать начисление"><svg class="icon"><use href="#i-trash"/></svg></button>` : ''}
+      </div>
+    </div>`;
+  }).join('') : emptyLine('', 'Начислений за период нет');
+
+  const pl = document.getElementById('balPayoutsList');
+  pl.innerHTML = payouts.length ? payouts.slice(0, 300).map(p=> `
+    <div class="row-item">
+      <div class="rmain">
+        <div class="rname">${escapeHtml(p.employee || '—')} · ${rub(p.amount)} ₽</div>
+        <div class="rmeta">${p.dateDisplay || new Date(p.timestamp).toLocaleDateString('ru-RU')}${p.note ? ' · ' + escapeHtml(p.note) : ''}</div>
+      </div>
+      <div class="rside">
+        ${del ? `<button class="icon-btn" onclick="deletePayout('${escapeAttr(p.uid)}')" aria-label="Удалить выплату"><svg class="icon"><use href="#i-trash"/></svg></button>` : '<span class="t-caption">выплата</span>'}
+      </div>
+    </div>`).join('') : emptyLine('', 'Выплат за период нет');
+}
+function exportBalanceCSV(){
+  getAllLive('orders').then(all=>{
+    if(isEmployee()) all = all.filter(matchesEmployeeScope);
+    all.sort((a, b)=> b.timestamp - a.timestamp);
+    let csv = 'Дата;Что;Сумма продажи;Ставка %;Комиссия;Партнёр\n';
+    all.forEach(o=>{
+      csv += [o.dateDisplay || new Date(o.timestamp).toLocaleDateString('ru-RU'),
+              (o.note || 'продажа'), o.amount, o.ratePercent, o.commission, o.employee || ''].join(';') + '\n';
+    });
+    downloadFile('komissiya.csv', csv, 'text/csv;charset=utf-8');
+  });
+}
+
+var currentBalancePeriod = 1;
+async function renderBalance(period, btnEl){
+  currentBalancePeriod = period;
+  const isCustom = typeof period === 'object' && period !== null;
+  const ids = {1:'balPeriodBtn1', 'yesterday':'balPeriodBtnYesterday', 7:'balPeriodBtn7', 30:'balPeriodBtn30'};
+  document.querySelectorAll('#sec-balance .period-seg button').forEach(b=> b.classList.remove('active'));
+  const activeBtn = btnEl || document.getElementById(
+    isCustom ? 'balPeriodBtnRange' : (period === null ? 'balPeriodBtnAll' : ids[period]));
+  if(activeBtn) activeBtn.classList.add('active');
+
+  const label = document.getElementById('balCustomRangeLabel');
+  if(isCustom){
+    label.style.display = 'block';
+    label.textContent = 'Период: ' + new Date(period.start).toLocaleDateString('ru-RU')
+      + ' – ' + new Date(period.end).toLocaleDateString('ru-RU');
+  } else {
+    label.style.display = 'none';
+  }
+
+  updateCommTiersSummary();
+  await updateEmployeesDatalist();
+
+  const range = getPeriodRange(period);
+  const data = await computeBalance(range);
+  renderBalanceSummary(data);
+  renderBalanceByDay(data);
+  renderBalanceByTier(data);
+  await renderBalanceLists(range);
+}
+
+/* ============================================================
+   РОЛИ: владелец или сотрудник (кабинет с урезанным доступом)
+   ============================================================ */
+function isEmployee(){
+  return !!(window.Sync && Sync.role && Sync.role() === 'employee');
+}
+const EMP_SECTIONS = ['stock','card','history','balance','settings'];
+
+/* Кэш состава сотрудников и «кто я» — заполняется в applyRoleUI. */
+window.__wsMembers = [];
+window.__empMemberId = null;
+window.__empName = '';
+
+function wsMemberIdByName(name){
+  const m = (window.__wsMembers || []).find(x=> (x.name || '') === String(name || '').trim());
+  return m ? m.member_id : undefined;
+}
+/* Для кабинета партнёра: строка баланса относится ко мне?
+   Начисления с продаж — общие (без имени и memberId), их видят все партнёры.
+   Именные строки (выплаты конкретному) — только тот партнёр. */
+function matchesEmployeeScope(row){
+  if(!isEmployee()) return true;
+  if(!row.memberId && !row.employee) return true;                       // общий пул
+  if(window.__empMemberId && row.memberId) return row.memberId === window.__empMemberId;
+  return (row.employee || '') === (window.__empName || '');
+}
+
+async function applyRoleUI(){
+  const emp = isEmployee();
+  document.body.classList.toggle('is-employee', emp);
+
+  if(emp){
+    window.__empName = (window.Sync && Sync.memberName) ? Sync.memberName() : '';
+    try{ window.__empMemberId = await Sync.myMemberId(); }catch(e){ window.__empMemberId = null; }
+    window.__wsMembers = [];
+  } else {
+    window.__empName = ''; window.__empMemberId = null;
+    try{ window.__wsMembers = (window.Sync && Sync.listMembers) ? await Sync.listMembers() : []; }catch(e){ window.__wsMembers = []; }
+  }
+
+  // нижняя панель: партнёру — только Склад, Поиск, История, Баланс
+  document.querySelectorAll('nav.bottom button').forEach(b=>{
+    const m = /showSection\('(\w+)'/.exec(b.getAttribute('onclick') || '');
+    const name = m && m[1];
+    b.hidden = emp && !['stock','card','history','balance'].includes(name);
+  });
+
+  // Баланс: партнёру без инструментов, свой заголовок
+  const ot = document.getElementById('balOwnerTools');
+  if(ot) ot.hidden = emp;
+  const bh = document.getElementById('balHead');
+  const bs = document.getElementById('balSub');
+  if(bh) bh.textContent = emp ? 'Сколько мне должны' : 'Баланс партнёров';
+  if(bs) bs.textContent = emp
+    ? 'Начисляется автоматически с каждой продажи, минус выплаты'
+    : 'Начисляется автоматически с каждого «Расхода» на Панели';
+  const byEmpCard = document.getElementById('balByEmployeeCard');
+  if(byEmpCard) byEmpCard.hidden = true;                // разбивка по партнёрам сейчас не используется
+
+  // Настройки: сотруднику оставляем только карточку «Синхронизация»
+  document.querySelectorAll('#sec-settings .card').forEach(c=>{
+    c.hidden = emp && !c.hasAttribute('data-emp');
+  });
+  // три точки на «Складе» и «Истории» — действия владельца
+  const sa = document.getElementById('stockActions');
+  if(sa) sa.hidden = emp;
+  const ha = document.getElementById('historyActions');
+  if(ha) ha.hidden = emp;
+
+  // сотрудника уводим с закрытых для него вкладок
+  const active = document.querySelector('main section.active');
+  if(emp && (!active || !EMP_SECTIONS.includes(active.id.replace('sec-','')))){
+    showSection('stock', document.querySelector('nav.bottom button[onclick*="\'stock\'"]'));
+  }
+
+  if(!emp) renderMembersCard();
+
+  // перерисовать открытый раздел под новую роль
+  if(active){
+    const nm = active.id.replace('sec-','');
+    if(nm === 'stock') renderStock();
+    else if(nm === 'card') renderCard();
+    else if(nm === 'history') renderHistory();
+    else if(nm === 'balance') renderBalance(currentBalancePeriod, null);
+    else if(nm === 'settings') loadSettingsForm();
+  }
+}
+window.applyRoleUI = applyRoleUI;
+
+function toggleEmployeeLogin(){
+  const bg = document.getElementById('pinModalBg');
+  const on = bg.dataset.emp !== '1';
+  bg.dataset.emp = on ? '1' : '0';
+  document.getElementById('empFields').hidden = !on;
+  document.getElementById('empToggleBtn').textContent = on ? 'Обычный вход (владелец)' : 'Войти как партнёр';
+  document.getElementById('pinTitle').textContent = on ? 'Вход партнёра' : 'Вход в склад';
+  document.getElementById('pinHint').textContent = on
+    ? 'Введите код приглашения от владельца, а логин и пароль придумайте свои.'
+    : 'Один вход на телефон, планшет и компьютер — данные едут между ними сами.';
+  const note = document.getElementById('authNote');
+  if(note) note.style.display = on ? 'none' : 'block';
+}
+
+/* ---- карточка «Сотрудники» в настройках (владелец) ---- */
+function renderMembersCard(){
+  const codeEl = document.getElementById('inviteCodeView');
+  if(codeEl && window.Sync && Sync.inviteCode) codeEl.value = Sync.inviteCode() || '—';
+  const box = document.getElementById('membersList');
+  if(!box) return;
+  const members = window.__wsMembers || [];
+  if(!members.length){
+    box.innerHTML = emptyLine('', 'Партнёров пока нет. Передайте код выше.');
+    return;
+  }
+  box.innerHTML = members.map(m=>`
+    <div class="row-item">
+      <div class="rmain"><div class="rname">${escapeHtml(m.name || 'Сотрудник')}</div>
+        <div class="rmeta">с ${new Date(m.created_at).toLocaleDateString('ru-RU')}</div></div>
+      <div class="rside">
+        <button class="icon-btn" onclick="removeMemberUI('${escapeAttr(m.member_id)}')" aria-label="Убрать сотрудника"><svg class="icon"><use href="#i-trash"/></svg></button>
+      </div>
+    </div>`).join('');
+}
+function copyInviteCode(){
+  const code = (window.Sync && Sync.inviteCode) ? Sync.inviteCode() : '';
+  if(!code){ toast('Код ещё не готов'); return; }
+  try{
+    navigator.clipboard.writeText(code).then(()=> toast('Код скопирован'), ()=> toast('Код: ' + code));
+  }catch(e){ toast('Код: ' + code); }
+}
+async function rotateInvite(){
+  if(!confirm('Сменить код приглашения? Старый перестанет работать.')) return;
+  const r = await Sync.rotateInviteCode();
+  if(!r.ok){ toast('Не вышло: ' + r.error); return; }
+  renderMembersCard();
+  toast('Новый код: ' + r.code);
+}
+async function removeMemberUI(memberId){
+  if(!confirm('Убрать этого партнёра из пространства? Он потеряет доступ к складу.')) return;
+  const r = await Sync.removeMember(memberId);
+  if(!r.ok){ toast('Не вышло: ' + r.error); return; }
+  window.__wsMembers = (window.__wsMembers || []).filter(m=> m.member_id !== memberId);
+  renderMembersCard();
+  toast('Партнёр убран');
+}
+
 function loadSettingsForm(){
   document.getElementById('setCompany').value = settings.company;
   document.getElementById('setLowStock').value = settings.lowStock;
@@ -4443,6 +5216,8 @@ function loadSettingsForm(){
   document.getElementById('setKbMode').value = skbMode();
   applyHeaderLogo();
   renderSoundRows();
+  loadCommTiersForm();
+  if(!isEmployee()) renderMembersCard();
   showAppVersion();
 }
 
