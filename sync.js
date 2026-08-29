@@ -270,6 +270,7 @@
       toRow: (o, uid) => ({
         user_id: uid, uid: o.uid, employee: o.employee || '', member_id: o.memberId || null,
         op_uid: o.opUid || null, source: o.source || 'manual',
+        paid: Boolean(o.paid), paid_at: o.paidAt || null,
         amount: num(o.amount), rate_percent: num(o.ratePercent), commission: num(o.commission),
         note: o.note || '', ts: num(o.timestamp), date_key: o.dateKey || '',
         updated_at: num(o.updatedAt), deleted_at: o.deletedAt || null
@@ -277,6 +278,7 @@
       toLocal: r => ({
         uid: r.uid, employee: r.employee || '', memberId: r.member_id || undefined,
         opUid: r.op_uid || undefined, source: r.source || 'manual',
+        paid: Boolean(r.paid), paidAt: r.paid_at || undefined,
         amount: num(r.amount),
         ratePercent: num(r.rate_percent), commission: num(r.commission),
         note: r.note || '', timestamp: num(r.ts), dateKey: r.date_key || '',
