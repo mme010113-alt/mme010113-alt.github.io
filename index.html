@@ -835,6 +835,18 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
 
     <section id="sec-settings">
       <div class="page-head"><h2>Настройки</h2><p>Параметры системы и резервные копии</p></div>
+
+      <div class="card" data-emp="1">
+        <div class="card-head"><span class="t-eyebrow">Аккаунт и синхронизация</span></div>
+        <div class="alert" id="syncStatusBox" style="margin-top:0;"></div>
+        <div class="btn-row" style="margin-top:var(--sp-3);">
+          <button class="btn ghost" onclick="syncNowFromSettings()"><svg class="icon"><use href="#i-download"/></svg>Обновить</button>
+          <button class="btn ghost" onclick="openPinModal('change')"><svg class="icon"><use href="#i-gear"/></svg>Сменить пароль</button>
+        </div>
+        <button class="btn danger" style="width:100%;margin-top:8px;" onclick="syncSignOut()"><svg class="icon"><use href="#i-x"/></svg>Выйти из аккаунта</button>
+        <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Данные хранятся и на устройстве, и на сервере. Без сети приложение работает как обычно, а накопленное уходит при первой связи.</div>
+      </div>
+
       <div class="card">
         <div class="card-head"><span class="t-eyebrow">Логотип в шапке</span></div>
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:var(--sp-3);">
@@ -891,17 +903,6 @@ nav.bottom button.active{color:var(--accent);background:var(--accent-soft);}
         <div id="soundRows"></div>
         <input type="file" id="soundFileInput" accept="audio/*" style="display:none" onchange="handleSoundUpload(event)">
         <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Короткий файл до 400 КБ: mp3, wav или ogg. Пока свой звук не загружен, звучит стандартный сигнал. Загруженные звуки уезжают на другие ваши устройства вместе с данными.</div>
-      </div>
-
-      <div class="card" data-emp="1">
-        <div class="card-head"><span class="t-eyebrow">Синхронизация</span></div>
-        <div class="alert" id="syncStatusBox" style="margin-top:0;"></div>
-        <div class="btn-row" style="margin-top:var(--sp-3);">
-          <button class="btn ghost" onclick="syncNowFromSettings()"><svg class="icon"><use href="#i-download"/></svg>Обновить</button>
-          <button class="btn ghost" onclick="openPinModal('change')"><svg class="icon"><use href="#i-gear"/></svg>Сменить пароль</button>
-        </div>
-        <button class="btn ghost" style="margin-top:8px;" onclick="syncSignOut()"><svg class="icon"><use href="#i-x"/></svg>Выйти на этом устройстве</button>
-        <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Данные хранятся и на устройстве, и на сервере. Без сети приложение работает как обычно, а накопленное уходит при первой связи.</div>
       </div>
 
       <div class="card" id="membersCard">
@@ -1876,8 +1877,13 @@ async function renderSyncStatusBox(){
     return;
   }
   const pending = (await getDirty('history')).length + (await getDirty('products')).length + (await getDirty('adspend')).length;
+  const login = (user.email || '').replace(/@sklad\.app$/,'') || (Sync.lastLogin ? Sync.lastLogin() : '') || 'вход выполнен';
+  const role = (Sync.role && Sync.role() === 'employee')
+      ? ('партнёр' + (Sync.memberName && Sync.memberName() ? ': ' + Sync.memberName() : ''))
+      : 'владелец';
   el.className = pending ? 'alert' : 'alert success';
   el.innerHTML = '<svg class="icon"><use href="#i-' + (pending ? 'clock' : 'check-circle') + '"/></svg><span>'
+               + 'Вход: <b>' + escapeHtml(login) + '</b> (' + escapeHtml(role) + ')<br>'
                + (pending ? ('Ждут отправки: ' + pending + '. Уйдут при первой связи.') : 'Всё синхронизировано между устройствами.')
                + '</span>';
 }
@@ -1888,10 +1894,12 @@ async function syncNowFromSettings(){
   await renderSyncStatusBox();
 }
 async function syncSignOut(){
-  if(!confirm('Выйти на этом устройстве? Данные останутся здесь, но обмен с другими устройствами прекратится.')) return;
+  if(!confirm('Выйти из аккаунта на этом устройстве?\n\nДанные склада останутся здесь, но синхронизация с другими устройствами прекратится, пока не войдёте снова.')) return;
   await Sync.signOut();
+  if(typeof applyRoleUI === 'function') await applyRoleUI();
   await renderSyncStatusBox();
-  toast('Вы вышли');
+  toast('Вы вышли из аккаунта');
+  openPinModal('login');
 }
 
 async function initSync(){
