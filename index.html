@@ -5381,10 +5381,10 @@ function openBarcodeSheet(list){
   .sheet{padding-top:50px;display:flex;flex-wrap:wrap;}
   .lbl{width:25%;height:54mm;border:1px dashed #cfcfcf;padding:3mm 2mm;display:flex;flex-direction:column;
        align-items:center;justify-content:flex-start;text-align:center;overflow:hidden;page-break-inside:avoid;break-inside:avoid;}
-  .lbl .nm{font-size:9.5px;font-weight:bold;line-height:1.15;max-height:2.4em;overflow:hidden;width:100%;margin-bottom:1.5mm;}
+  .lbl .nm{font-size:9.5px;font-weight:bold;color:#000;line-height:1.15;max-height:2.4em;overflow:hidden;width:100%;margin-bottom:1.5mm;}
   .lbl .qr{flex:1;display:flex;align-items:center;justify-content:center;}
   .lbl .qr canvas, .lbl .qr img{width:29mm !important;height:29mm !important;}
-  .lbl .cd{font-size:8px;font-family:monospace;margin-top:1mm;width:100%;overflow:hidden;white-space:nowrap;}
+  .lbl .cd{font-size:8px;font-family:monospace;color:#000;margin-top:1mm;width:100%;overflow:hidden;white-space:nowrap;}
   @media print{ .bar{display:none;} .sheet{padding-top:0;} }
 </style></head><body>
 <div class="bar"><button onclick="window.print()">Печать</button>${list.length} шт · 20 на листе A4</div>
