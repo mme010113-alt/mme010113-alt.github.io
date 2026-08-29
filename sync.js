@@ -147,6 +147,7 @@
   /* Владелец: гарантированно получить свой код (создаётся при первом вызове). */
   async function ensureInviteCode(){
     if(!ready() || membership) return null;
+    if(!(await currentUser())) return null;   // без входа кода нет
     try{
       const {data, error} = await client.rpc('ensure_workspace');
       if(!error) inviteCode = data || null;
