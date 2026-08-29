@@ -97,6 +97,8 @@
 
   async function signOut(){
     stopRealtime();
+    membership = null;
+    inviteCode = null;
     if(client) { try{ await client.auth.signOut(); }catch(e){} }
     emit('signed-out');
   }
@@ -105,6 +107,92 @@
     if(!ready()) return {ok:false, error:'Нет соединения'};
     if(String(newPassword || '').length < 6) return {ok:false, error:'Пароль — не короче 6 символов'};
     const {error} = await client.auth.updateUser({password: newPassword});
+    return error ? {ok:false, error:error.message} : {ok:true};
+  }
+
+  // ------------------------------------------------------------------
+  // РОЛИ: владелец пространства или сотрудник, присоединённый по коду
+  // ------------------------------------------------------------------
+  /* membership === null  → человек владелец собственного пространства;
+     membership объект     → он сотрудник, работает в пространстве owner_id. */
+  let membership = null;
+  let inviteCode = null;   // код-приглашение владельца (для показа в настройках)
+
+  async function resolveMembership(){
+    membership = null;
+    if(!ready()) return null;
+    const user = await currentUser();
+    if(!user) return null;
+    try{
+      const {data, error} = await client
+        .from('workspace_members')
+        .select('owner_id, role, name')
+        .eq('member_id', user.id)
+        .limit(1);
+      if(error) throw error;
+      membership = (data && data.length) ? data[0] : null;
+    }catch(e){ membership = null; }   // таблицы ещё нет / нет связи — считаем владельцем
+    return membership;
+  }
+
+  function role(){ return membership ? (membership.role || 'employee') : 'owner'; }
+  function memberName(){ return membership ? (membership.name || 'Сотрудник') : ''; }
+  async function myMemberId(){ const u = await currentUser(); return u ? u.id : null; }
+  async function workspaceOwnerId(){
+    if(membership) return membership.owner_id;
+    const u = await currentUser();
+    return u ? u.id : null;
+  }
+
+  /* Владелец: гарантированно получить свой код (создаётся при первом вызове). */
+  async function ensureInviteCode(){
+    if(!ready() || membership) return null;
+    try{
+      const {data, error} = await client.rpc('ensure_workspace');
+      if(!error) inviteCode = data || null;
+    }catch(e){}
+    return inviteCode;
+  }
+  async function rotateInviteCode(){
+    if(!ready() || membership) return {ok:false, error:'Только для владельца'};
+    const {data, error} = await client.rpc('rotate_invite_code');
+    if(error) return {ok:false, error:error.message};
+    inviteCode = data || null;
+    return {ok:true, code:inviteCode};
+  }
+  function currentInviteCode(){ return inviteCode; }
+
+  /* Сотрудник: присоединиться к пространству по коду. Вызывается сразу
+     после signIn — учётная запись у сотрудника своя. */
+  async function joinWorkspace(code, name){
+    if(!ready()) return {ok:false, error:'Нет соединения'};
+    const {data, error} = await client.rpc('join_workspace', {
+      p_code: String(code || '').trim(),
+      p_name: String(name || '').trim()
+    });
+    if(error) return {ok:false, error: error.message};
+    await resolveMembership();
+    return {ok:true, ownerId: data};
+  }
+
+  /* Владелец: список партнёров и удаление. */
+  async function listMembers(){
+    if(!ready() || membership) return [];
+    if(!(await currentUser())) return [];   // до входа спрашивать нечего
+    const {data, error} = await client
+      .from('workspace_members')
+      .select('member_id, name, role, created_at')
+      .order('created_at', {ascending:true});
+    return error ? [] : (data || []);
+  }
+  async function removeMember(memberId){
+    if(!ready() || membership) return {ok:false, error:'Только для владельца'};
+    const user = await currentUser();
+    const {error} = await client
+      .from('workspace_members')
+      .delete()
+      .eq('owner_id', user.id)
+      .eq('member_id', memberId);
     return error ? {ok:false, error:error.message} : {ok:true};
   }
 
@@ -175,6 +263,45 @@
       }),
       keyOf: r => r.date_key,
       conflict: 'user_id,date_key'
+    },
+    orders: {
+      table: 'orders',
+      toRow: (o, uid) => ({
+        user_id: uid, uid: o.uid, employee: o.employee || '', member_id: o.memberId || null,
+        op_uid: o.opUid || null, source: o.source || 'manual',
+        amount: num(o.amount), rate_percent: num(o.ratePercent), commission: num(o.commission),
+        note: o.note || '', ts: num(o.timestamp), date_key: o.dateKey || '',
+        updated_at: num(o.updatedAt), deleted_at: o.deletedAt || null
+      }),
+      toLocal: r => ({
+        uid: r.uid, employee: r.employee || '', memberId: r.member_id || undefined,
+        opUid: r.op_uid || undefined, source: r.source || 'manual',
+        amount: num(r.amount),
+        ratePercent: num(r.rate_percent), commission: num(r.commission),
+        note: r.note || '', timestamp: num(r.ts), dateKey: r.date_key || '',
+        dateDisplay: new Date(num(r.ts)).toLocaleDateString('ru-RU'),
+        updatedAt: num(r.updated_at), deletedAt: r.deleted_at || undefined
+      }),
+      keyOf: r => r.uid,
+      conflict: 'user_id,uid'
+    },
+    payouts: {
+      table: 'payouts',
+      toRow: (p, uid) => ({
+        user_id: uid, uid: p.uid, employee: p.employee || '', member_id: p.memberId || null,
+        amount: num(p.amount), note: p.note || '',
+        ts: num(p.timestamp), date_key: p.dateKey || '',
+        updated_at: num(p.updatedAt), deleted_at: p.deletedAt || null
+      }),
+      toLocal: r => ({
+        uid: r.uid, employee: r.employee || '', memberId: r.member_id || undefined,
+        amount: num(r.amount), note: r.note || '',
+        timestamp: num(r.ts), dateKey: r.date_key || '',
+        dateDisplay: new Date(num(r.ts)).toLocaleDateString('ru-RU'),
+        updatedAt: num(r.updated_at), deletedAt: r.deleted_at || undefined
+      }),
+      keyOf: r => r.uid,
+      conflict: 'user_id,uid'
     }
   };
 
@@ -196,7 +323,7 @@
     /* На сервере может лежать версия свежее нашей — например, звуки
        поменяли на телефоне, пока это устройство лежало выключенным.
        Отправка «вслепую» затёрла бы их, поэтому уступаем и ждём приёма. */
-    const check = await client.from('app_settings').select('updated_at').eq('key','app').limit(1);
+    const check = await client.from('app_settings').select('updated_at').eq('user_id', uid).eq('key','app').limit(1);
     if(check.error) throw new Error('settings: ' + check.error.message);
     const remoteTime = check.data && check.data.length ? num(check.data[0].updated_at) : 0;
     if(remoteTime > num(local.updatedAt)){
@@ -217,10 +344,12 @@
     return 1;
   }
 
-  async function pullSettings(){
+  async function pullSettings(wsOwner){
     const local = await window.get('settings', 'app');
     const localTime = num(local && local.updatedAt);
-    const {data, error} = await client.from('app_settings').select('*').eq('key','app').limit(1);
+    let q = client.from('app_settings').select('*').eq('key','app');
+    if(wsOwner) q = q.eq('user_id', wsOwner);
+    const {data, error} = await q.limit(1);
     if(error) throw new Error('settings: ' + error.message);
     if(!data || !data.length) return 0;
 
@@ -361,9 +490,32 @@
     syncing = true;
     emit('syncing', {reason});
     try{
+      /* orders/payouts появились позже: если схему в Supabase ещё не
+         обновили, обращение к этим таблицам падает с «relation does not
+         exist». Раньше это валило весь обмен — и товары с операциями тоже
+         переставали синхронизироваться. Поэтому по новым таблицам ошибку
+         «нет таблицы» глотаем, остальное работает как прежде. */
+      const optional = new Set(['orders','payouts']);
+      const missingTable = e => /does not exist|schema cache|Could not find the table/i.test(String(e && e.message || e));
+      const guard = async (store, fn) => {
+        try{ return await fn(); }
+        catch(e){ if(optional.has(store) && missingTable(e)) return 0; throw e; }
+      };
+
+      /* Сотрудник ничего не пишет в общие данные и не видит рекламу.
+         Владелец — как раньше. wsOwner: чей это склад (для сотрудника —
+         владелец пространства, для владельца — он сам). */
+      const emp = !!membership;
+      const wsOwner = emp ? membership.owner_id : user.id;
+      const pushList = emp ? [] : ['products','history','adspend','orders','payouts'];
+      const pullList = emp ? ['products','history','orders','payouts']
+                           : ['products','history','adspend','orders','payouts'];
+
       let sent = 0;
-      for(const s of ['products','history','adspend']) sent += await pushStore(s, user.id);
-      sent += await pushSettings(user.id);
+      for(const s of pushList){
+        sent += await guard(s, ()=> pushStore(s, wsOwner));
+      }
+      if(!emp) sent += await pushSettings(wsOwner);
 
       const cursorRow = await window.get('settings','syncCursor');
       const saved = cursorRow ? num(cursorRow.value) : 0;
@@ -382,13 +534,14 @@
       let received = 0;
       let newCursor = saved;
       const skus = new Set();
-      for(const s of ['products','history','adspend']){
-        const r = await pullStore(s, since);
+      for(const s of pullList){
+        const r = await guard(s, ()=> pullStore(s, since))
+              || {applied:0, maxUpdated:since, touchedSkus:[]};
         received += r.applied;
         newCursor = Math.max(newCursor, r.maxUpdated);
         r.touchedSkus.forEach(x=> skus.add(x));
       }
-      received += await pullSettings();
+      received += await pullSettings(wsOwner);
       /* Одна запись с часами «из будущего» иначе увела бы курсор вперёд на
          годы, и приём встал бы намертво. */
       newCursor = Math.min(newCursor, Date.now());
@@ -399,7 +552,9 @@
 
       const pending = (await window.getDirty('history')).length
                     + (await window.getDirty('products')).length
-                    + (await window.getDirty('adspend')).length;
+                    + (await window.getDirty('adspend')).length
+                    + (await window.getDirty('orders')).length
+                    + (await window.getDirty('payouts')).length;
 
       emit('idle', {sent, received, pending, at: Date.now()});
       if(received && typeof window.refreshAfterSync === 'function') await window.refreshAfterSync();
@@ -423,7 +578,14 @@
       .on('postgres_changes', {event:'*', schema:'public', table:'operations'}, ()=> syncNow('чужая операция'))
       .on('postgres_changes', {event:'*', schema:'public', table:'products'},   ()=> syncNow('чужой товар'))
       .on('postgres_changes', {event:'*', schema:'public', table:'adspend'},    ()=> syncNow('чужая реклама'))
+      .on('postgres_changes', {event:'*', schema:'public', table:'orders'},     ()=> syncNow('чужой заказ'))
+      .on('postgres_changes', {event:'*', schema:'public', table:'payouts'},    ()=> syncNow('чужая выплата'))
       .on('postgres_changes', {event:'*', schema:'public', table:'app_settings'}, ()=> syncNow('чужие настройки'))
+      .on('postgres_changes', {event:'*', schema:'public', table:'workspace_members'}, async ()=>{
+        await resolveMembership();
+        if(typeof window.applyRoleUI === 'function') window.applyRoleUI();
+        syncNow('состав сотрудников');
+      })
       .subscribe();
   }
   function stopRealtime(){
@@ -435,6 +597,9 @@
     if(!init()) return false;
     const user = await currentUser();
     if(!user){ emit('signed-out'); return false; }
+    await resolveMembership();
+    if(!membership) await ensureInviteCode();   // владелец — заводим код при первом запуске
+    if(typeof window.applyRoleUI === 'function') window.applyRoleUI();
     startRealtime();
     await syncNow('запуск');
     return true;
@@ -448,6 +613,10 @@
   window.Sync = {
     init, start, signIn, signOut, changePassword, syncNow, currentUser,
     startRealtime, stopRealtime, onStatus, ready, lastLogin,
-    isConfigured: ()=> Boolean(CFG.url && CFG.key)
+    isConfigured: ()=> Boolean(CFG.url && CFG.key),
+    // роли и кабинет сотрудника
+    resolveMembership, role, memberName, myMemberId, workspaceOwnerId,
+    joinWorkspace, listMembers, removeMember,
+    ensureInviteCode, rotateInviteCode, inviteCode: currentInviteCode
   };
 })();
