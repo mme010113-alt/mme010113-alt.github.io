@@ -1737,6 +1737,10 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     if(el) el.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); submitPin(); } });
   });
 
+  /* Роль из кэша — применяем ДО первых отрисовок и до снятия заставки,
+     иначе партнёр секунду видит интерфейс владельца со всеми вкладками. */
+  try{ await applyRoleUI(); }catch(e){}
+
   await renderStock(); await renderInvList(); await renderHistory(); await renderStats(); await renderReports();
   await updateProductCountPill();
   loadSettingsForm();
@@ -3701,17 +3705,19 @@ async function renderHistory(){
       display = (d < 0 ? '−' : (d > 0 ? '+' : '')) + Math.abs(d);
       cls = d < 0 ? 'neg' : 'pos';
     }
+    const skuLine = `<div class="rmeta" style="font-family:var(--font-mono);color:var(--text-secondary);">${escapeHtml(h.sku || '—')}</div>`;
+    const dtLine  = `<div class="rmeta">${h.date} · ${h.time} · ${h.type}</div>`;
     if(emp){
       return `
       <div class="row-item">
-        <div class="rmain"><div class="rname">${escapeHtml(h.name)}</div><div class="rmeta">${h.date} · ${h.time} · ${h.type}</div></div>
+        <div class="rmain"><div class="rname">${escapeHtml(h.name)}</div>${skuLine}${dtLine}</div>
         <div class="rside"><span class="rval ${cls}">${display} шт</span></div>
       </div>`;
     }
     return `
     <div class="row-item">
       <input type="checkbox" class="hist-chk" aria-label="Выбрать запись" ${historySelection.has(h.id)?'checked':''} onchange="toggleHistorySelection(${h.id}, this.checked)">
-      <div class="rmain"><div class="rname">${escapeHtml(h.name)}</div><div class="rmeta">${h.date} · ${h.time} · ${h.type}</div></div>
+      <div class="rmain"><div class="rname">${escapeHtml(h.name)}</div>${skuLine}${dtLine}</div>
       <div class="rside">
         <span class="rval ${cls}">${display} шт</span>
         <button class="icon-btn" onclick="deleteHistoryEntry(${h.id})" aria-label="Удалить запись"><svg class="icon"><use href="#i-trash"/></svg></button>
