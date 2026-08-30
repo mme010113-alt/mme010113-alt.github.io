@@ -897,13 +897,13 @@ body.labels-open{overflow:hidden;}
         <div class="field"><label>Звук при сканировании</label><select id="setSound"><option value="1">Да</option><option value="0">Нет</option></select></div>
         <div class="field"><label>Запрет ухода в минус</label><select id="setBlockNeg"><option value="1">Да</option><option value="0">Нет</option></select></div>
         <div class="field">
-          <label>Своя клавиатура на экране</label>
+          <label>Клавиатура для ввода</label>
           <select id="setKbMode">
-            <option value="auto">Сама, когда системной нет</option>
-            <option value="always">Всегда</option>
-            <option value="off">Не показывать</option>
+            <option value="off">Только клавиатура телефона</option>
+            <option value="auto">Встроенная — если телефон свою не показал</option>
+            <option value="always">Встроенная клавиатура — всегда</option>
           </select>
-          <div class="t-caption" style="margin-top:6px;color:var(--text-tertiary);">Нужна, когда подключён сканер: iPhone считает его клавиатурой и свою не показывает. Настройка своя на каждом устройстве и на другие не уезжает.</div>
+          <div class="t-caption" style="margin-top:6px;color:var(--text-tertiary);">Встроенная клавиатура нужна, только если к телефону подключён Bluetooth/USB-сканер: iPhone тогда считает его клавиатурой и свою не показывает. Если сканера нет — оставьте «Только клавиатура телефона». Настройка на каждом устройстве своя.</div>
         </div>
         <button class="btn primary" onclick="saveSettings()"><svg class="icon"><use href="#i-check"/></svg>Сохранить</button>
         <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Версия приложения: <span id="appVersion">—</span></div>
@@ -1597,13 +1597,15 @@ function skbMode(){
   /* Партнёр не сканирует — своя экранная клавиатура ему только мешает.
      Всегда системная клавиатура телефона. Настройку устройства не трогаем. */
   if(typeof isEmployee === 'function' && isEmployee()) return 'off';
-  try{ return localStorage.getItem('skladKbMode') || 'auto'; }catch(e){ return 'auto'; }
+  /* По умолчанию — клавиатура телефона. Встроенную включают вручную те,
+     у кого к телефону подключён Bluetooth/USB-сканер. */
+  try{ return localStorage.getItem('skladKbMode') || 'off'; }catch(e){ return 'off'; }
 }
 function setSkbMode(v){ try{ localStorage.setItem('skladKbMode', v || 'auto'); }catch(e){} }
 
 /* На экране входа в настройки не попасть, а клавиатура нужна уже там:
    пока не подобран режим, человек не может ввести даже логин. */
-const SKB_MODE_NAMES = {auto:'сама', always:'всегда', off:'выключена'};
+const SKB_MODE_NAMES = {off:'телефона', auto:'авто', always:'встроенная'};
 function syncAuthKbButton(){
   const b = document.getElementById('authKbBtn');
   if(b) b.textContent = 'Клавиатура: ' + (SKB_MODE_NAMES[skbMode()] || 'сама');
@@ -1688,6 +1690,11 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     }
 
     if(e.key.length === 1){
+      /* Буфер нужен только чтобы поймать очередь символов от аппаратного
+         сканера, случайно попавшую в поле количества. Человеку на обычной
+         клавиатуре не мешаем — иначе на iPhone поле «залипало» и клавиатура
+         закрывалась (preventDefault на каждой цифре). */
+      if(!hwScannerSeen){ clearTimeout(typeFlushTimer); scanTyped = ''; return; }
       /* Ни один символ не попадает в поле сразу: сначала копим и только
          через мгновение решаем, человек это набирает или сканер стреляет
          очередью. Пауза незаметна на глаз, зато поле не портится. */
@@ -2163,13 +2170,21 @@ var qtyReplaceNext = true;
    поле только показывает число, а вводят его кнопки под ним. */
 var touchQty = false;
 function initQtyPads(){
-  touchQty = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-  if(!touchQty) return;
+  /* Любое сенсорное устройство: iPad с клавиатурой-чехлом отдаёт
+     «pointer: fine», поэтому смотрим ещё и на касания. */
+  touchQty = !!(
+    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
+    || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0)
+    || ('ontouchstart' in window)
+  );
+  /* Количество вводится кнопками-цифрами под полем, само поле — только
+     показывает число. Так не воюем с системной/встроенной клавиатурой:
+     она для количества просто не нужна. */
   ['prihodQtyPad','camQtyPad'].forEach(id=>{
-    const el = document.getElementById(id); if(el) el.classList.add('on');
+    const el = document.getElementById(id); if(el) el.classList.toggle('on', touchQty);
   });
   ['prihodQtyInput','camQtyInput'].forEach(id=>{
-    const el = document.getElementById(id); if(el) el.readOnly = true;  // системная клавиатура не откроется
+    const el = document.getElementById(id); if(el) el.readOnly = touchQty;
   });
 }
 function padKey(inputId, key){
