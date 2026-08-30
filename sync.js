@@ -99,6 +99,7 @@
     stopRealtime();
     membership = null;
     inviteCode = null;
+    writeCachedMembership(null);
     if(client) { try{ await client.auth.signOut(); }catch(e){} }
     emit('signed-out');
   }
@@ -114,15 +115,37 @@
   // РОЛИ: владелец пространства или сотрудник, присоединённый по коду
   // ------------------------------------------------------------------
   /* membership === null  → человек владелец собственного пространства;
-     membership объект     → он сотрудник, работает в пространстве owner_id. */
-  let membership = null;
-  let inviteCode = null;   // код-приглашение владельца (для показа в настройках)
+     membership объект     → он сотрудник, работает в пространстве owner_id.
+
+     Роль кэшируется в localStorage: иначе при запуске приложение секунду
+     показывает интерфейс владельца (все вкладки), пока сходит на сервер за
+     составом. С кэшем нужная роль применяется сразу, а сервер только
+     подтверждает. */
+  const MEMBERSHIP_CACHE_KEY = 'sklad-membership';
+  function readCachedMembership(){
+    try{
+      const m = JSON.parse(localStorage.getItem(MEMBERSHIP_CACHE_KEY) || 'null');
+      return (m && m.owner_id) ? m : null;
+    }catch(e){ return null; }
+  }
+  function writeCachedMembership(m){
+    try{
+      if(m && m.owner_id){
+        localStorage.setItem(MEMBERSHIP_CACHE_KEY, JSON.stringify({
+          owner_id: m.owner_id, role: m.role || 'employee', name: m.name || ''
+        }));
+      } else {
+        localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
+      }
+    }catch(e){}
+  }
+  let membership = readCachedMembership();
+  let inviteCode = null;   // код-приглашения владельца (для показа в настройках)
 
   async function resolveMembership(){
-    membership = null;
-    if(!ready()) return null;
+    if(!ready()) return membership;              // без связи держимся кэша
     const user = await currentUser();
-    if(!user) return null;
+    if(!user) return membership;                 // сессия могла ещё не восстановиться — кэш не трогаем (чистит только выход)
     try{
       const {data, error} = await client
         .from('workspace_members')
@@ -130,8 +153,9 @@
         .eq('member_id', user.id)
         .limit(1);
       if(error) throw error;
-      membership = (data && data.length) ? data[0] : null;
-    }catch(e){ membership = null; }   // таблицы ещё нет / нет связи — считаем владельцем
+      membership = (data && data.length) ? data[0] : null;   // достоверный ответ
+      writeCachedMembership(membership);
+    }catch(e){ /* таблицы нет / нет связи — оставляем прежнее (кэш) */ }
     return membership;
   }
 
