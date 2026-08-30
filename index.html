@@ -3688,7 +3688,14 @@ async function renderHistory(){
     let display, cls;
     if(h.type==='Расход'){ display = '−'+Math.abs(h.qty); cls='neg'; }
     else if(h.type==='Приход'){ display = '+'+Math.abs(h.qty); cls='pos'; }
-    else { display = (h.qty>0?'+':'')+h.qty; cls = h.qty>=0?'pos':'neg'; }
+    else {
+      /* Корректировка / Начальный остаток: знак и цвет — по delta (со знаком),
+         а не по qty (оно всегда положительное). Минусовая корректировка
+         должна быть «−N» красным, а не «+N» зелёным. */
+      const d = historyDelta(h);
+      display = (d < 0 ? '−' : (d > 0 ? '+' : '')) + Math.abs(d);
+      cls = d < 0 ? 'neg' : 'pos';
+    }
     if(emp){
       return `
       <div class="row-item">
