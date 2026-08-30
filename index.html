@@ -1381,6 +1381,13 @@ function historyBySku(sku){
     r.onerror = rej;
   });
 }
+function historyByUid(uid){
+  return new Promise((res,rej)=>{
+    const r = tx('history').index('byUid').get(uid);
+    r.onsuccess = ()=> res(r.result);
+    r.onerror = rej;
+  });
+}
 
 /* Пересчитывает остаток товара по его операциям и обновляет кэш.
    Записи, помеченные legacy, в расчёт не идут: они относятся ко времени
@@ -3780,6 +3787,7 @@ async function deleteSelectedHistoryWithCorrection(){
       await softDelete('history', h.id);
       if(h.type === 'Расход') await removeSaleCommission(h.uid);
     }
+    await new Promise(r=> setTimeout(r, 0));   // удаления должны зафиксироваться до пересчёта
 
     if(p){
       const current = await recalcStock(p.sku);
@@ -3811,6 +3819,7 @@ async function deleteHistoryEntry(id){
      операциям, поэтому достаточно убрать запись и пересчитать. */
   await softDelete('history', id);
   if(entry.type === 'Расход') await removeSaleCommission(entry.uid);   // и связанное начисление партнёрам
+  await new Promise(r=> setTimeout(r, 0));   // транзакция удаления должна зафиксироваться до пересчёта остатка
   const p = await recalcStock(entry.sku);
   toast(p !== null ? 'Запись удалена, остаток пересчитан' : 'Запись удалена (товар уже удалён со склада)');
   await renderHistory();
@@ -4993,11 +5002,28 @@ async function toggleOrderPaid(uid, isPaid){
   await renderBalance(currentBalancePeriod, null);
 }
 async function deleteOrder(uid){
-  if(!confirm('Убрать это начисление? (на остаток и продажу это не влияет)')) return;
+  const o = await get('orders', uid);
+  if(!o) return;
+  /* Начисление пришло с продажи в «Расходе». Убрать его = отменить ту
+     продажу: связанная операция удаляется, товар возвращается на склад. */
+  const linked = o.opUid ? await historyByUid(o.opUid) : null;
+  const canRestore = linked && !linked.deletedAt && linked.type === 'Расход';
+
+  const msg = canRestore
+    ? 'Отменить эту продажу?\n\nТовар «' + linked.name + '» — ' + Math.abs(Number(linked.qty)||0) + ' шт вернётся на склад, начисление партнёру пропадёт.'
+    : 'Убрать это начисление? (на остаток это не повлияет)';
+  if(!confirm(msg)) return;
+
   await softDelete('orders', uid);
-  if(window.Sync && Sync.syncNow) Sync.syncNow('убрано начисление');
-  toast('Начисление убрано');
+  if(canRestore){
+    await softDelete('history', linked.id);
+    await new Promise(r=> setTimeout(r, 0));   // даём транзакции удаления зафиксироваться до пересчёта
+    await recalcStock(linked.sku);
+  }
+  if(window.Sync && Sync.syncNow) Sync.syncNow(canRestore ? 'отменена продажа' : 'убрано начисление');
+  toast(canRestore ? 'Продажа отменена, товар вернулся на склад' : 'Начисление убрано');
   await renderBalance(currentBalancePeriod, null);
+  if(canRestore){ await renderStock(); await renderHistory(); await renderStats(); }
 }
 
 async function computeBalance(range){
@@ -5035,7 +5061,7 @@ function renderBalanceSummary(d){
     <div class="receipt-row"><span class="rl">${emp ? 'Мне начислено' : 'Начислено'} за период</span><span class="rv">${rub(d.commission)} ₽</span></div>
     <div class="receipt-row"><span class="rl">— выплачено</span><span class="rv">${rub(d.paid)} ₽</span></div>
     <div class="receipt-row"><span class="rl">— не выплачено</span><span class="rv">${rub(d.unpaid)} ₽</span></div>
-    <div class="receipt-row total"><span class="rl">К выплате всего</span><span class="rv">${rub(d.debtAll)} ₽</span></div>`;
+    <div class="receipt-row total"><span class="rl">К выплате</span><span class="rv">${rub(d.debtAll)} ₽</span></div>`;
 }
 function renderBalanceByDay(d){
   const box = document.getElementById('balByDay');
