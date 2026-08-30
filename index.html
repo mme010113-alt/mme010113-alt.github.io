@@ -3661,8 +3661,13 @@ async function finishInventory(){
 
 async function renderHistory(){
   let all = await getAllLive('history');
-  // партнёр видит операции только начиная с даты отсечки (Настройки владельца → Баланс)
-  if(isEmployee()) all = all.filter(h=> (h.timestamp || 0) >= partnerFromTs());
+  /* Партнёр видит только приход/расход и только с даты отсечки
+     (Настройки владельца → Баланс). Корректировки и начальный остаток
+     ему не показываем. */
+  if(isEmployee()){
+    const from = partnerFromTs();
+    all = all.filter(h=> (h.type === 'Приход' || h.type === 'Расход') && (h.timestamp || 0) >= from);
+  }
   all.sort((a,b)=> b.timestamp - a.timestamp);
   const typeFilter = document.getElementById('historyFilter').value;
 
@@ -5210,6 +5215,9 @@ async function applyRoleUI(){
   if(sa) sa.hidden = emp;
   const ha = document.getElementById('historyActions');
   if(ha) ha.hidden = emp;
+  // партнёру в фильтре «Истории» незачем «Корректировка» — он их не видит
+  const corrOpt = document.querySelector('#historyFilter option[value="Корректировка"]');
+  if(corrOpt) corrOpt.hidden = emp;
 
   // сотрудника уводим с закрытых для него вкладок
   const active = document.querySelector('main section.active');
