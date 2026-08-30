@@ -733,11 +733,11 @@ body.labels-open{overflow:hidden;}
 
       <div class="card">
         <div class="filter-row">
-          <input type="text" id="stockSearch" placeholder="Поиск" oninput="renderStock()">
+          <input type="text" id="stockSearch" placeholder="Поиск по SKU или названию" oninput="renderStock()">
           <select id="supplierFilter" onchange="renderStock()" aria-label="Поставщик">
             <option value="">Все поставщики</option>
           </select>
-          <button class="icon-btn-lg" onclick="openScannerCapture(function(code){document.getElementById('stockSearch').value=code; renderStock();})" aria-label="Сканировать штрихкод"><svg class="icon"><use href="#i-keyboard"/></svg></button>
+          <button class="icon-btn-lg" id="stockScanBtn" onclick="openScannerCapture(function(code){document.getElementById('stockSearch').value=code; renderStock();})" aria-label="Сканировать штрихкод"><svg class="icon"><use href="#i-keyboard"/></svg></button>
         </div>
         <div id="stockList"></div>
       </div>
@@ -5221,6 +5221,12 @@ async function applyRoleUI(){
   if(sa) sa.hidden = emp;
   const ha = document.getElementById('historyActions');
   if(ha) ha.hidden = emp;
+  // на «Складе» у партнёра — только строка поиска (по SKU/названию),
+  // без фильтра по поставщику и без кнопки сканирования
+  const supFil = document.getElementById('supplierFilter');
+  if(supFil){ supFil.hidden = emp; if(emp) supFil.value = ''; }
+  const scanBtn = document.getElementById('stockScanBtn');
+  if(scanBtn) scanBtn.hidden = emp;
   // партнёру в фильтре «Истории» незачем «Корректировка» — он их не видит
   const corrOpt = document.querySelector('#historyFilter option[value="Корректировка"]');
   if(corrOpt) corrOpt.hidden = emp;
