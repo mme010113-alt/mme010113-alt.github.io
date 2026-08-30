@@ -5153,7 +5153,7 @@ async function renderBalance(period, btnEl){
 function isEmployee(){
   return !!(window.Sync && Sync.role && Sync.role() === 'employee');
 }
-const EMP_SECTIONS = ['stock','card','history','balance','settings'];
+const EMP_SECTIONS = ['stock','history','balance','settings'];
 
 /* Кэш состава сотрудников и «кто я» — заполняется в applyRoleUI. */
 window.__wsMembers = [];
@@ -5187,11 +5187,11 @@ async function applyRoleUI(){
     try{ window.__wsMembers = (window.Sync && Sync.listMembers) ? await Sync.listMembers() : []; }catch(e){ window.__wsMembers = []; }
   }
 
-  // нижняя панель: партнёру — только Склад, Поиск, История, Баланс
+  // нижняя панель: партнёру — только Склад, История, Баланс
   document.querySelectorAll('nav.bottom button').forEach(b=>{
     const m = /showSection\('(\w+)'/.exec(b.getAttribute('onclick') || '');
     const name = m && m[1];
-    b.hidden = emp && !['stock','card','history','balance'].includes(name);
+    b.hidden = emp && !['stock','history','balance'].includes(name);
   });
 
   // Баланс: партнёру без инструментов, свой заголовок
