@@ -818,6 +818,7 @@ body.labels-open{overflow:hidden;}
 
       <div class="card">
         <div class="filter-row">
+          <input type="text" id="historySearch" placeholder="Поиск по SKU или названию" oninput="renderHistory()">
           <select id="historyFilter" onchange="renderHistory()" aria-label="Тип операции">
             <option value="">Все операции</option>
             <option value="Приход">Приход</option>
@@ -3681,8 +3682,13 @@ async function renderHistory(){
   }
   all.sort((a,b)=> b.timestamp - a.timestamp);
   const typeFilter = document.getElementById('historyFilter').value;
+  const q = (document.getElementById('historySearch').value || '').trim().toLowerCase();
 
   let filtered = typeFilter ? all.filter(h=>h.type===typeFilter) : all;
+  if(q){
+    filtered = filtered.filter(h=>
+      (h.name||'').toLowerCase().includes(q) || String(h.sku||'').toLowerCase().includes(q));
+  }
   if(historyRange){
     filtered = filtered.filter(h=> h.timestamp>=historyRange.start && h.timestamp<=historyRange.end);
   }
@@ -3694,7 +3700,7 @@ async function renderHistory(){
   updateHistorySelCount();
 
   if(filtered.length===0){
-    list.innerHTML = (typeFilter || historyRange)
+    list.innerHTML = (typeFilter || q || historyRange)
       ? emptyLine('i-search','Под этот фильтр операций не попало')
       : emptyState('i-clock','Операций пока нет','Отсканируйте первый товар на «Панели», и он появится здесь.');
     return;
