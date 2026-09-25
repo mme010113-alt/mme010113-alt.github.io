@@ -1,6 +1,6 @@
 ﻿/* Версию бампаем при КАЖДОЙ выкладке — иначе у установленных приложений
    останется старый кеш, и правки увидят не сразу. */
-const CACHE_NAME = 'sklad-v46';
+const CACHE_NAME = 'sklad-v47';
 
 /* Всё, что нужно приложению для полностью автономной работы: оболочка,
    иконки, сканер штрихкодов, генератор QR и шрифты. Раньше сканер, QR и
@@ -102,8 +102,12 @@ self.addEventListener('fetch', (e) => {
   if (e.request.mode === 'navigate' || e.request.destination === 'document') {
     e.respondWith((async () => {
       try {
+        /* no-store: GitHub Pages отдаёт index.html с Cache-Control: max-age=600 —
+           без этого браузер мог десять минут отдавать страницу из своего
+           обычного HTTP-кеша, даже не сходив в сеть, и правки не появлялись
+           «после закрытия и открытия», пока это окно не истекало. */
         const res = await cleanResponse(
-          await fetch(e.request.url, { redirect: 'follow', credentials: 'same-origin' })
+          await fetch(e.request.url, { redirect: 'follow', credentials: 'same-origin', cache: 'no-store' })
         );
         if (res && res.status === 200) {
           const copy = res.clone();
