@@ -904,6 +904,8 @@ body.labels-open{overflow:hidden;}
           <button class="btn ghost" onclick="syncNowFromSettings()"><svg class="icon"><use href="#i-download"/></svg>Обновить</button>
           <button class="btn ghost" onclick="openPinModal('change')"><svg class="icon"><use href="#i-gear"/></svg>Сменить пароль</button>
         </div>
+        <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="fullResyncFromSettings()"><svg class="icon"><use href="#i-inbox"/></svg>Полная пересинхронизация</button>
+        <div class="t-caption" style="margin:6px 0 0;color:var(--text-tertiary);">Если остатки на этом телефоне не совпадают с другим устройством — нажмите сюда: программа заново скачает всю историю операций и пересчитает остатки. Обычная «Обновить» подтягивает только новое, эта — перепроверяет всё.</div>
         <button class="btn danger" style="width:100%;margin-top:8px;" onclick="syncSignOut()"><svg class="icon"><use href="#i-x"/></svg>Выйти из аккаунта</button>
         <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Данные хранятся и на устройстве, и на сервере. Без сети приложение работает как обычно, а накопленное уходит при первой связи.</div>
       </div>
@@ -2062,6 +2064,27 @@ async function syncNowFromSettings(){
   const r = await Sync.syncNow('вручную');
   toast(r.ok ? ('Готово. Отправлено: '+(r.sent||0)+', получено: '+(r.received||0)) : ('Не вышло: '+r.error));
   await renderSyncStatusBox();
+}
+
+/* Обычная синхронизация подтягивает только то, что изменилось после курсора,
+   и пересчитывает остаток лишь у «задетых» этим товаров. Если у устройства
+   когда-то был провал (не докачало часть истории, приложение закрылось
+   на середине и т.п.), с этим курсором оно так и останется в неведении —
+   различие с другим телефоном само не исчезнет. Здесь курсор сбрасывается
+   в ноль (перекачивается вся история заново) и остаток пересчитывается
+   у всех товаров подряд, а не только у «задетых» — на случай, если локальные
+   записи и так были верны, а разошёлся только закэшированный остаток. */
+async function fullResyncFromSettings(){
+  if(!window.Sync || !Sync.isConfigured()){ toast('Синхронизация не настроена'); return; }
+  if(!confirm('Полностью пересинхронизировать данные с сервером?\n\nПрограмма заново скачает всю историю операций и пересчитает остатки на этом устройстве. Нужно, если остатки не совпадают с другим телефоном. На большом складе может занять минуту.')) return;
+  toast('Пересинхронизация…');
+  await window.put('settings', {key:'syncCursor', value: 0});
+  const r = await Sync.syncNow('полная пересинхронизация');
+  const all = await getAllLive('products');
+  for(const p of all){ await recalcStock(p.sku); }
+  toast(r.ok ? ('Готово. Остатки пересчитаны у ' + all.length + ' ' + pluralTovar(all.length) + '.') : ('Не вышло: ' + r.error));
+  await renderSyncStatusBox();
+  await renderStock();
 }
 async function syncSignOut(){
   if(!confirm('Выйти из аккаунта на этом устройстве?\n\nДанные склада останутся здесь, но синхронизация с другими устройствами прекратится, пока не войдёте снова.')) return;
