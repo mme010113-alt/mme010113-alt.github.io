@@ -1524,8 +1524,21 @@ async function recalcStock(sku){
   const p = await get('products', sku);
   if(!p) return null;
   const ops = await historyBySku(sku);
+  /* Индекс byUid не уникальный (unique:false) — сама IndexedDB не мешает
+     двум записям с одинаковым uid оказаться в базе (например, если один
+     и тот же серверный ряд прилетел синхронизацией дважды). Раньше сумма
+     считалась по всем рядам подряд — задвоенная запись задваивала и
+     остаток. Здесь по каждому uid оставляем только одну (свежайшую по
+     updatedAt) запись, прежде чем суммировать — остаток верен, даже если
+     дубли в базе всё-таки завелись. */
+  const byUid = new Map();
+  ops.forEach(h=>{
+    const key = h.uid || ('#'+h.id);   // у самодельных записей без uid дублей не бывает
+    const prev = byUid.get(key);
+    if(!prev || (Number(h.updatedAt)||0) > (Number(prev.updatedAt)||0)) byUid.set(key, h);
+  });
   let stock = 0;
-  ops.forEach(h=>{ if(!h.legacy && !h.deletedAt) stock += historyDelta(h); });
+  byUid.forEach(h=>{ if(!h.legacy && !h.deletedAt) stock += historyDelta(h); });
   if(p.totalStock !== stock){
     p.totalStock = stock;
     p.updatedAt = Date.now();
@@ -2066,23 +2079,50 @@ async function syncNowFromSettings(){
   await renderSyncStatusBox();
 }
 
+/* Индекс byUid у «истории» не уникальный (техническое ограничение
+   IndexedDB) — сама база не мешает одной и той же серверной записи
+   осесть локально дважды под разными id. recalcStock теперь защищён от
+   этого (считает по уникальным uid), но сами дубли всё равно засоряют
+   «Историю» — эта функция физически убирает лишние копии, оставляя по
+   каждому uid одну (самую свежую по updatedAt). */
+async function dedupeLocalHistory(){
+  const all = await getAll('history');
+  const keep = new Map();
+  const dropIds = [];
+  all.forEach(h=>{
+    if(!h.uid) return;   // у самодельных легаси-записей без uid дублей не бывает
+    const prev = keep.get(h.uid);
+    if(!prev){ keep.set(h.uid, h); return; }
+    const newer = (Number(h.updatedAt)||0) > (Number(prev.updatedAt)||0) ? h : prev;
+    const older = newer === h ? prev : h;
+    keep.set(h.uid, newer);
+    dropIds.push(older.id);
+  });
+  for(const id of dropIds){ await del('history', id); }
+  return dropIds.length;
+}
+
 /* Обычная синхронизация подтягивает только то, что изменилось после курсора,
    и пересчитывает остаток лишь у «задетых» этим товаров. Если у устройства
    когда-то был провал (не докачало часть истории, приложение закрылось
    на середине и т.п.), с этим курсором оно так и останется в неведении —
    различие с другим телефоном само не исчезнет. Здесь курсор сбрасывается
-   в ноль (перекачивается вся история заново) и остаток пересчитывается
-   у всех товаров подряд, а не только у «задетых» — на случай, если локальные
-   записи и так были верны, а разошёлся только закэшированный остаток. */
+   в ноль (перекачивается вся история заново), убираются дубли записей,
+   если они успели накопиться, и остаток пересчитывается у всех товаров
+   подряд, а не только у «задетых» — на случай, если локальные записи и
+   так были верны, а разошёлся только закэшированный остаток. */
 async function fullResyncFromSettings(){
   if(!window.Sync || !Sync.isConfigured()){ toast('Синхронизация не настроена'); return; }
-  if(!confirm('Полностью пересинхронизировать данные с сервером?\n\nПрограмма заново скачает всю историю операций и пересчитает остатки на этом устройстве. Нужно, если остатки не совпадают с другим телефоном. На большом складе может занять минуту.')) return;
+  if(!confirm('Полностью пересинхронизировать данные с сервером?\n\nПрограмма заново скачает всю историю операций, уберёт задвоенные записи (если есть) и пересчитает остатки на этом устройстве. Нужно, если остатки не совпадают с другим телефоном. На большом складе может занять минуту.')) return;
   toast('Пересинхронизация…');
   await window.put('settings', {key:'syncCursor', value: 0});
   const r = await Sync.syncNow('полная пересинхронизация');
+  const dupCount = await dedupeLocalHistory();
   const all = await getAllLive('products');
   for(const p of all){ await recalcStock(p.sku); }
-  toast(r.ok ? ('Готово. Остатки пересчитаны у ' + all.length + ' ' + pluralTovar(all.length) + '.') : ('Не вышло: ' + r.error));
+  toast(r.ok
+    ? ('Готово. Остатки пересчитаны у ' + all.length + ' ' + pluralTovar(all.length) + (dupCount ? ('; убрано дублей: ' + dupCount) : '') + '.')
+    : ('Не вышло: ' + r.error));
   await renderSyncStatusBox();
   await renderStock();
 }
