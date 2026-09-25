@@ -3763,7 +3763,7 @@ async function toggleHistoryStock(e, el, id, sku){
   }
   el.dataset.baseText = el.textContent;
   const stock = await stockBeforeHistoryId(id, sku);
-  el.textContent = el.dataset.baseText + (stock === null ? ' · остаток неизвестен' : (' · остаток прошлый: ' + stock + ' шт'));
+  el.textContent = el.dataset.baseText + (stock === null ? ' · было неизвестно' : (' · было: ' + stock + ' шт'));
   el.dataset.showingStock = '1';
 }
 
