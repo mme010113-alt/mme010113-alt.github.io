@@ -755,11 +755,11 @@ body.labels-open{overflow:hidden;}
       <div class="page-head">
         <div class="page-head-row">
           <h2>Возвраты</h2>
-          <div class="head-actions">
+          <div class="head-actions" id="returnsActions">
             <button class="icon-btn-lg" onclick="openReturnPick()" aria-label="Добавить возврат"><svg class="icon"><use href="#i-plus"/></svg></button>
           </div>
         </div>
-        <p>Товары, которые вернул покупатель — до повторной отправки</p>
+        <p id="returnsSub">Товары, которые вернул покупатель — до повторной отправки</p>
       </div>
       <div class="card">
         <div id="returnsList"></div>
@@ -2922,12 +2922,32 @@ async function getOpenReturns(){
 }
 async function renderReturns(){
   const list = document.getElementById('returnsList');
-  const open = await getOpenReturns();
+  const emp = isEmployee();
+  let open = await getOpenReturns();
+  if(emp){
+    const from = partnerFromTs();
+    open = open.filter(h=> (h.timestamp||0) >= from);
+  }
+  const sub = document.getElementById('returnsSub');
+  if(sub) sub.textContent = emp
+    ? 'Товары, которые вы вернули — пока не отправлены покупателю снова'
+    : 'Товары, которые вернул покупатель — до повторной отправки';
   if(open.length===0){
-    list.innerHTML = emptyState('i-inbox','Возвратов нет','Нажмите «+», чтобы добавить товар, который вернул покупатель.');
+    list.innerHTML = emptyState('i-inbox','Возвратов нет', emp ? 'Пока ничего не возвращали.' : 'Нажмите «+», чтобы добавить товар, который вернул покупатель.');
     return;
   }
-  list.innerHTML = open.map(h=>`
+  /* Партнёру — только просмотр: без галочки «отправлено снова» и без
+     удаления, эти действия делает владелец. */
+  list.innerHTML = open.map(h=> emp ? `
+    <div class="row-item">
+      <div class="rmain">
+        <div class="rname">${escapeHtml(h.name)}</div>
+        <div class="rmeta">${escapeHtml(h.sku)} · ${h.date} ${h.time}</div>
+      </div>
+      <div class="rside">
+        <span class="rval pos">+${Math.abs(h.delta)} шт</span>
+      </div>
+    </div>` : `
     <div class="row-item">
       <input type="checkbox" class="inv-chk" aria-label="Отправлено покупателю снова" onchange="resolveReturn(${h.id}, this.checked, this)">
       <div class="rmain">
@@ -5658,7 +5678,7 @@ async function renderBalance(period, btnEl){
 function isEmployee(){
   return !!(window.Sync && Sync.role && Sync.role() === 'employee');
 }
-const EMP_SECTIONS = ['stock','history','balance','settings'];
+const EMP_SECTIONS = ['stock','returns','history','balance','settings'];
 
 /* Кэш состава сотрудников и «кто я» — заполняется в applyRoleUI. */
 window.__wsMembers = [];
@@ -5692,11 +5712,11 @@ async function applyRoleUI(){
     try{ window.__wsMembers = (window.Sync && Sync.listMembers) ? await Sync.listMembers() : []; }catch(e){ window.__wsMembers = []; }
   }
 
-  // нижняя панель: партнёру — только Склад, История, Баланс
+  // нижняя панель: партнёру — Склад, Возвраты, История, Баланс
   document.querySelectorAll('nav.bottom button').forEach(b=>{
     const m = /showSection\('(\w+)'/.exec(b.getAttribute('onclick') || '');
     const name = m && m[1];
-    b.hidden = emp && !['stock','history','balance'].includes(name);
+    b.hidden = emp && !['stock','returns','history','balance'].includes(name);
   });
 
   // Баланс: партнёру без инструментов, свой заголовок
@@ -5715,11 +5735,13 @@ async function applyRoleUI(){
   document.querySelectorAll('#sec-settings .card').forEach(c=>{
     c.hidden = emp && !c.hasAttribute('data-emp');
   });
-  // три точки на «Складе» и «Истории» — действия владельца
+  // три точки на «Складе» и «Истории», «+» на «Возвратах» — действия владельца
   const sa = document.getElementById('stockActions');
   if(sa) sa.hidden = emp;
   const ha = document.getElementById('historyActions');
   if(ha) ha.hidden = emp;
+  const ra = document.getElementById('returnsActions');
+  if(ra) ra.hidden = emp;
   // на «Складе» у партнёра — только строка поиска (по SKU/названию),
   // без фильтра по поставщику и без кнопки сканирования
   const supFil = document.getElementById('supplierFilter');
