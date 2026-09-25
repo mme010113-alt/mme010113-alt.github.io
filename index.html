@@ -1078,6 +1078,7 @@ body.labels-open{overflow:hidden;}
           <button class="btn ghost sm" style="width:auto;" onclick="exportBalanceCSV()"><svg class="icon"><use href="#i-download"/></svg>CSV</button>
         </div>
         <div class="t-caption" id="balUnpaidHint" style="margin-bottom:6px;color:var(--text-tertiary);">Отметьте галочкой то, что уже отдали партнёру.</div>
+        <button class="btn primary sm" id="balMarkAllBtn" style="margin-bottom:var(--sp-2);" onclick="markAllUnpaidVisible()" hidden><svg class="icon"><use href="#i-check"/></svg>Отметить все выплаченными</button>
         <div id="balOrdersList"></div>
       </div>
 
@@ -5175,6 +5176,36 @@ async function renderBalanceLists(range){
   if(ph) ph.textContent = 'Выплачено' + (paid.length ? ' (' + paid.length + ')' : '');
   const hint = document.getElementById('balUnpaidHint');
   if(hint) hint.hidden = emp;
+
+  const markAllBtn = document.getElementById('balMarkAllBtn');
+  if(markAllBtn){
+    const show = !emp && unpaid.length > 1;   // на одну галочку кнопка ни к чему
+    markAllBtn.hidden = !show;
+    if(show){
+      const sum = unpaid.reduce((s,o)=> s + (Number(o.commission)||0), 0);
+      markAllBtn.innerHTML = `<svg class="icon"><use href="#i-check"/></svg>Отметить все выплаченными (${unpaid.length} · ${rub(sum)} ₽)`;
+    }
+  }
+}
+/* Отмечает выплаченными разом все начисления, которые сейчас видны в
+   «Не выплачено» (то есть за выбранный период) — чтобы не тыкать галочки
+   по одной, если заказов за период много. */
+async function markAllUnpaidVisible(){
+  const range = getPeriodRange(currentBalancePeriod);
+  const inRange = ts => !range || (ts >= range.start && ts <= range.end);
+  const unpaid = (await getAllLive('orders')).filter(o=> !o.paid && inRange(o.timestamp) && visibleToPartner(o));
+  if(!unpaid.length){ toast('Отмечать нечего'); return; }
+  const sum = unpaid.reduce((s,o)=> s + (Number(o.commission)||0), 0);
+  if(!confirm('Отметить выплаченными все начисления за выбранный период?\n\n' + unpaid.length + ' шт. на сумму ' + rub(sum) + ' ₽.')) return;
+  const now = Date.now();
+  for(const o of unpaid){
+    o.paid = true;
+    o.paidAt = now;
+    await put('orders', o);
+  }
+  if(window.Sync && Sync.syncNow) Sync.syncNow('массово отмечено выплачено');
+  toast('Отмечено выплаченными: ' + unpaid.length);
+  await renderBalance(currentBalancePeriod, null);
 }
 function exportBalanceCSV(){
   getAllLive('orders').then(all=>{
