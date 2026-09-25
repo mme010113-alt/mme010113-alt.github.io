@@ -33,6 +33,7 @@
   --success:#2BBE85; --success-soft:rgba(43,190,133,.14); --success-border:rgba(43,190,133,.32);
   --danger:#FF6B78; --danger-soft:rgba(255,107,120,.14); --danger-border:rgba(255,107,120,.32);
   --info:#8C7EF2; --info-soft:rgba(140,126,242,.14); --info-border:rgba(140,126,242,.32);
+  --warning:#E0A030; --warning-soft:rgba(224,160,48,.14); --warning-border:rgba(224,160,48,.32);
 
   /* палитра категорий для кольцевой диаграммы */
   --cat-1:#4A7DFF; --cat-2:#FF6B78; --cat-3:#8C7EF2; --cat-4:#FFA35C; --cat-5:#2FBFAE; --cat-6:#FFC94D;
@@ -316,6 +317,10 @@ section.active{display:block;animation:fade .18s ease;}
 .row-item .rval.neg{color:var(--danger);}
 .icon-btn{width:30px;height:30px;border-radius:var(--r-sm);background:rgba(255,255,255,.6);border:1px solid var(--border-soft);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);flex-shrink:0;}
 .icon-btn .icon{width:15px;height:15px;}
+/* строка товара на «Складе»: приход — зелёная, расход — красная, правка — жёлтая */
+.icon-btn.in{background:var(--success-soft);border-color:var(--success-border);color:var(--success);}
+.icon-btn.out{background:var(--danger-soft);border-color:var(--danger-border);color:var(--danger);}
+.icon-btn.edit{background:var(--warning-soft);border-color:var(--warning-border);color:var(--warning);}
 
 .tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:var(--r-sm);font-size:10px;font-weight:700;letter-spacing:.03em;flex-shrink:0;}
 .tag.A{background:var(--success-soft);color:var(--success);}
@@ -1286,6 +1291,39 @@ body.labels-open{overflow:hidden;}
   </div>
 </div>
 
+<!-- Быстрый приход прямо со «Склада»: та же кнопка-пара, только приёмка. -->
+<div class="modal-bg" id="quickPrihodModalBg" data-close="closeQuickPrihod">
+  <div class="modal">
+    <div class="modal-grip"></div>
+    <h3>Приход товара</h3>
+    <div class="ccname" id="qpName"></div>
+    <div class="ccstock" id="qpStock"></div>
+    <div class="qty-stepper">
+      <button onclick="adjustQuickPrihodQty(-1)" aria-label="Меньше">−</button>
+      <input type="number" id="qpQtyInput" value="1" min="1" inputmode="numeric" enterkeyhint="done">
+      <button onclick="adjustQuickPrihodQty(1)" aria-label="Больше">+</button>
+    </div>
+    <div class="qty-pad" id="qpQtyPad">
+      <button onclick="padKey('qpQtyInput','1')">1</button>
+      <button onclick="padKey('qpQtyInput','2')">2</button>
+      <button onclick="padKey('qpQtyInput','3')">3</button>
+      <button onclick="padKey('qpQtyInput','4')">4</button>
+      <button onclick="padKey('qpQtyInput','5')">5</button>
+      <button onclick="padKey('qpQtyInput','6')">6</button>
+      <button onclick="padKey('qpQtyInput','7')">7</button>
+      <button onclick="padKey('qpQtyInput','8')">8</button>
+      <button onclick="padKey('qpQtyInput','9')">9</button>
+      <button class="aux" onclick="padKey('qpQtyInput','clear')" aria-label="Сбросить">C</button>
+      <button onclick="padKey('qpQtyInput','0')">0</button>
+      <button class="aux" onclick="padKey('qpQtyInput','back')" aria-label="Стереть">⌫</button>
+    </div>
+    <div class="btn-row" style="margin-top:var(--sp-3);">
+      <button class="btn ghost sm" onclick="closeQuickPrihod()">Отмена</button>
+      <button class="btn primary sm" onclick="confirmQuickPrihod()"><svg class="icon"><use href="#i-in"/></svg>В приход</button>
+    </div>
+  </div>
+</div>
+
 <!-- Своя клавиатура: пока к телефону подключён сканер, iOS считает, что
      клавиатура уже есть, и системную не показывает. Печатать нечем. -->
 <div class="softkb" id="softKb" aria-hidden="true">
@@ -2235,10 +2273,10 @@ function initQtyPads(){
   /* Количество вводится кнопками-цифрами под полем, само поле — только
      показывает число. Так не воюем с системной/встроенной клавиатурой:
      она для количества просто не нужна. */
-  ['prihodQtyPad','camQtyPad','qrQtyPad'].forEach(id=>{
+  ['prihodQtyPad','camQtyPad','qrQtyPad','qpQtyPad'].forEach(id=>{
     const el = document.getElementById(id); if(el) el.classList.toggle('on', touchQty);
   });
-  ['prihodQtyInput','camQtyInput','qrQtyInput'].forEach(id=>{
+  ['prihodQtyInput','camQtyInput','qrQtyInput','qpQtyInput'].forEach(id=>{
     const el = document.getElementById(id); if(el) el.readOnly = touchQty;
   });
 }
@@ -2760,6 +2798,42 @@ async function confirmQuickRashod(){
   const ok = await applyStockOperation(p, barcode, qty);
   currentMode = savedMode;
   if(ok) toast(p.name + ' — расход −' + qty + ' шт');
+}
+
+/* ---- быстрый приход прямо со «Склада» (кнопка рядом с карандашиком) ----
+   Та же логика, что и у быстрого расхода выше, только приёмка. */
+let pendingQuickPrihod = null; // товар
+async function openQuickPrihod(sku){
+  const p = await get('products', sku);
+  if(!p) return;
+  pendingQuickPrihod = p;
+  document.getElementById('qpName').textContent = p.name;
+  document.getElementById('qpStock').textContent = 'На складе сейчас: ' + (p.totalStock||0) + ' шт';
+  const input = document.getElementById('qpQtyInput');
+  input.value = 1;
+  qtyReplaceNext = true;
+  document.getElementById('quickPrihodModalBg').classList.add('show');
+}
+function adjustQuickPrihodQty(delta){
+  const input = document.getElementById('qpQtyInput');
+  input.value = Math.max(1, Math.round(Number(input.value)||1) + delta);
+  qtyReplaceNext = true;
+}
+function closeQuickPrihod(){
+  pendingQuickPrihod = null;
+  document.getElementById('quickPrihodModalBg').classList.remove('show');
+}
+async function confirmQuickPrihod(){
+  if(!pendingQuickPrihod) return;
+  const p = pendingQuickPrihod;
+  const qty = Math.max(1, Math.round(Number(document.getElementById('qpQtyInput').value)||1));
+  closeQuickPrihod();
+  const barcode = p.barcode || p.sku;
+  const savedMode = currentMode;
+  currentMode = 'Приход';
+  const ok = await applyStockOperation(p, barcode, qty);
+  currentMode = savedMode;
+  if(ok) toast(p.name + ' — приход +' + qty + ' шт');
 }
 
 function switchInputTab(tab){
@@ -3383,8 +3457,9 @@ async function renderStock(){
       </div>
       <div class="rside">
         <span class="rval ${cls}">${p.totalStock} шт</span>
-        <button class="icon-btn" onclick="openQuickRashod('${escapeAttr(p.sku)}')" aria-label="Быстрый расход"><svg class="icon"><use href="#i-out"/></svg></button>
-        <button class="icon-btn" onclick="editProduct('${escapeAttr(p.sku)}')" aria-label="Изменить"><svg class="icon"><use href="#i-edit"/></svg></button>
+        <button class="icon-btn in" onclick="openQuickPrihod('${escapeAttr(p.sku)}')" aria-label="Быстрый приход"><svg class="icon"><use href="#i-in"/></svg></button>
+        <button class="icon-btn out" onclick="openQuickRashod('${escapeAttr(p.sku)}')" aria-label="Быстрый расход"><svg class="icon"><use href="#i-out"/></svg></button>
+        <button class="icon-btn edit" onclick="editProduct('${escapeAttr(p.sku)}')" aria-label="Изменить"><svg class="icon"><use href="#i-edit"/></svg></button>
       </div>
     </div>`;
   }).join('');
