@@ -1244,6 +1244,40 @@ body.labels-open{overflow:hidden;}
   </div>
 </div>
 
+<!-- Быстрый расход прямо со «Склада»: кнопка рядом с карандашиком —
+     без сканера и без похода в «Панель», по SKU строки товара. -->
+<div class="modal-bg" id="quickRashodModalBg" data-close="closeQuickRashod">
+  <div class="modal">
+    <div class="modal-grip"></div>
+    <h3>Расход товара</h3>
+    <div class="ccname" id="qrName"></div>
+    <div class="ccstock" id="qrStock"></div>
+    <div class="qty-stepper">
+      <button onclick="adjustQuickRashodQty(-1)" aria-label="Меньше">−</button>
+      <input type="number" id="qrQtyInput" value="1" min="1" inputmode="numeric" enterkeyhint="done">
+      <button onclick="adjustQuickRashodQty(1)" aria-label="Больше">+</button>
+    </div>
+    <div class="qty-pad" id="qrQtyPad">
+      <button onclick="padKey('qrQtyInput','1')">1</button>
+      <button onclick="padKey('qrQtyInput','2')">2</button>
+      <button onclick="padKey('qrQtyInput','3')">3</button>
+      <button onclick="padKey('qrQtyInput','4')">4</button>
+      <button onclick="padKey('qrQtyInput','5')">5</button>
+      <button onclick="padKey('qrQtyInput','6')">6</button>
+      <button onclick="padKey('qrQtyInput','7')">7</button>
+      <button onclick="padKey('qrQtyInput','8')">8</button>
+      <button onclick="padKey('qrQtyInput','9')">9</button>
+      <button class="aux" onclick="padKey('qrQtyInput','clear')" aria-label="Сбросить">C</button>
+      <button onclick="padKey('qrQtyInput','0')">0</button>
+      <button class="aux" onclick="padKey('qrQtyInput','back')" aria-label="Стереть">⌫</button>
+    </div>
+    <div class="btn-row" style="margin-top:var(--sp-3);">
+      <button class="btn ghost sm" onclick="closeQuickRashod()">Отмена</button>
+      <button class="btn primary sm" onclick="confirmQuickRashod()"><svg class="icon"><use href="#i-out"/></svg>В расход</button>
+    </div>
+  </div>
+</div>
+
 <!-- Своя клавиатура: пока к телефону подключён сканер, iOS считает, что
      клавиатура уже есть, и системную не показывает. Печатать нечем. -->
 <div class="softkb" id="softKb" aria-hidden="true">
@@ -2193,10 +2227,10 @@ function initQtyPads(){
   /* Количество вводится кнопками-цифрами под полем, само поле — только
      показывает число. Так не воюем с системной/встроенной клавиатурой:
      она для количества просто не нужна. */
-  ['prihodQtyPad','camQtyPad'].forEach(id=>{
+  ['prihodQtyPad','camQtyPad','qrQtyPad'].forEach(id=>{
     const el = document.getElementById(id); if(el) el.classList.toggle('on', touchQty);
   });
-  ['prihodQtyInput','camQtyInput'].forEach(id=>{
+  ['prihodQtyInput','camQtyInput','qrQtyInput'].forEach(id=>{
     const el = document.getElementById(id); if(el) el.readOnly = touchQty;
   });
 }
@@ -2679,6 +2713,45 @@ async function confirmPrihodScan(){
   document.getElementById('prihodConfirm').style.display = 'none';
   await applyStockOperation(item.product, item.barcode, qty);
   focusForScanner(document.getElementById('scanInput'));
+}
+
+/* ---- быстрый расход прямо со «Склада» (кнопка рядом с карандашиком) ----
+   Без сканера: нажал на товар — ввёл штук — сразу списалось в «Расход»,
+   без похода в «Панель». */
+let pendingQuickRashod = null; // товар
+async function openQuickRashod(sku){
+  const p = await get('products', sku);
+  if(!p) return;
+  pendingQuickRashod = p;
+  document.getElementById('qrName').textContent = p.name;
+  document.getElementById('qrStock').textContent = 'На складе сейчас: ' + (p.totalStock||0) + ' шт';
+  const input = document.getElementById('qrQtyInput');
+  input.value = 1;
+  qtyReplaceNext = true;
+  document.getElementById('quickRashodModalBg').classList.add('show');
+}
+function adjustQuickRashodQty(delta){
+  const input = document.getElementById('qrQtyInput');
+  input.value = Math.max(1, Math.round(Number(input.value)||1) + delta);
+  qtyReplaceNext = true;
+}
+function closeQuickRashod(){
+  pendingQuickRashod = null;
+  document.getElementById('quickRashodModalBg').classList.remove('show');
+}
+async function confirmQuickRashod(){
+  if(!pendingQuickRashod) return;
+  const p = pendingQuickRashod;
+  const qty = Math.max(1, Math.round(Number(document.getElementById('qrQtyInput').value)||1));
+  closeQuickRashod();
+  const barcode = p.barcode || p.sku;
+  /* applyStockOperation берёт направление из currentMode — подменяем его
+     на время одного вызова, чтобы не трогать режим на вкладке «Панель». */
+  const savedMode = currentMode;
+  currentMode = 'Расход';
+  const ok = await applyStockOperation(p, barcode, qty);
+  currentMode = savedMode;
+  if(ok) toast(p.name + ' — расход −' + qty + ' шт');
 }
 
 function switchInputTab(tab){
@@ -3302,6 +3375,7 @@ async function renderStock(){
       </div>
       <div class="rside">
         <span class="rval ${cls}">${p.totalStock} шт</span>
+        <button class="icon-btn" onclick="openQuickRashod('${escapeAttr(p.sku)}')" aria-label="Быстрый расход"><svg class="icon"><use href="#i-out"/></svg></button>
         <button class="icon-btn" onclick="editProduct('${escapeAttr(p.sku)}')" aria-label="Изменить"><svg class="icon"><use href="#i-edit"/></svg></button>
       </div>
     </div>`;
