@@ -748,6 +748,24 @@ body.labels-open{overflow:hidden;}
       </div>
     </section>
 
+    <!-- ВОЗВРАТЫ: товар, который покупатель вернул — снова числится на
+         складе, но повторная отправка не должна ещё раз посчитаться в
+         выручку и комиссию партнёрам (они уже учтены в первой продаже). -->
+    <section id="sec-returns">
+      <div class="page-head">
+        <div class="page-head-row">
+          <h2>Возвраты</h2>
+          <div class="head-actions">
+            <button class="icon-btn-lg" onclick="openReturnPick()" aria-label="Добавить возврат"><svg class="icon"><use href="#i-plus"/></svg></button>
+          </div>
+        </div>
+        <p>Товары, которые вернул покупатель — до повторной отправки</p>
+      </div>
+      <div class="card">
+        <div id="returnsList"></div>
+      </div>
+    </section>
+
     <section id="sec-card">
       <div class="page-head"><h2>Поиск товара</h2><p>По штрихкоду, SKU или части названия</p></div>
       <div class="card">
@@ -1109,6 +1127,7 @@ body.labels-open{overflow:hidden;}
   <nav class="bottom">
     <button class="active" onclick="showSection('panel',this)"><svg class="icon"><use href="#i-home"/></svg>Панель</button>
     <button onclick="showSection('stock',this)"><svg class="icon"><use href="#i-box"/></svg>Склад</button>
+    <button onclick="showSection('returns',this)"><svg class="icon"><use href="#i-inbox"/></svg>Возвраты</button>
     <button onclick="showSection('history',this)"><svg class="icon"><use href="#i-clock"/></svg>История</button>
     <button onclick="showSection('finance',this)"><svg class="icon"><use href="#i-wallet"/></svg>Расходы</button>
     <button onclick="showSection('balance',this)"><svg class="icon"><use href="#i-coins"/></svg>Баланс</button>
@@ -1320,6 +1339,51 @@ body.labels-open{overflow:hidden;}
     <div class="btn-row" style="margin-top:var(--sp-3);">
       <button class="btn ghost sm" onclick="closeQuickPrihod()">Отмена</button>
       <button class="btn primary sm" onclick="confirmQuickPrihod()"><svg class="icon"><use href="#i-in"/></svg>В приход</button>
+    </div>
+  </div>
+</div>
+
+<!-- Возврат, шаг 1: выбрать товар из склада -->
+<div class="modal-bg" id="returnPickModalBg" data-close="closeReturnPick">
+  <div class="modal">
+    <div class="modal-grip"></div>
+    <h3>Какой товар вернули</h3>
+    <input type="text" id="returnPickSearch" placeholder="Поиск по SKU или названию" oninput="renderReturnPickList()" style="margin-bottom:var(--sp-3);">
+    <div id="returnPickList" style="max-height:50vh;overflow-y:auto;"></div>
+    <button class="btn ghost" style="margin-top:var(--sp-3);" onclick="closeReturnPick()">Отмена</button>
+  </div>
+</div>
+
+<!-- Возврат, шаг 2: количество — та же клавиатура-степпер, что и у прихода/расхода -->
+<div class="modal-bg" id="returnQtyModalBg" data-close="closeReturnQty">
+  <div class="modal">
+    <div class="modal-grip"></div>
+    <h3>Сколько вернули</h3>
+    <div class="ccname" id="rtName"></div>
+    <div class="ccstock" id="rtStock"></div>
+    <div class="qty-stepper">
+      <button onclick="adjustReturnQty(-1)" aria-label="Меньше">−</button>
+      <input type="number" id="rtQtyInput" value="1" min="1" inputmode="numeric" enterkeyhint="done">
+      <button onclick="adjustReturnQty(1)" aria-label="Больше">+</button>
+    </div>
+    <div class="qty-pad" id="rtQtyPad">
+      <button onclick="padKey('rtQtyInput','1')">1</button>
+      <button onclick="padKey('rtQtyInput','2')">2</button>
+      <button onclick="padKey('rtQtyInput','3')">3</button>
+      <button onclick="padKey('rtQtyInput','4')">4</button>
+      <button onclick="padKey('rtQtyInput','5')">5</button>
+      <button onclick="padKey('rtQtyInput','6')">6</button>
+      <button onclick="padKey('rtQtyInput','7')">7</button>
+      <button onclick="padKey('rtQtyInput','8')">8</button>
+      <button onclick="padKey('rtQtyInput','9')">9</button>
+      <button class="aux" onclick="padKey('rtQtyInput','clear')" aria-label="Сбросить">C</button>
+      <button onclick="padKey('rtQtyInput','0')">0</button>
+      <button class="aux" onclick="padKey('rtQtyInput','back')" aria-label="Стереть">⌫</button>
+    </div>
+    <div class="t-caption" style="margin-top:8px;color:var(--text-tertiary);">Товар вернётся на остаток «Склада». На выручку и комиссию партнёрам это не повлияет — они уже учтены в первой продаже.</div>
+    <div class="btn-row" style="margin-top:var(--sp-3);">
+      <button class="btn ghost sm" onclick="closeReturnQty()">Отмена</button>
+      <button class="btn primary sm" onclick="confirmReturnAdd()"><svg class="icon"><use href="#i-inbox"/></svg>Добавить в возвраты</button>
     </div>
   </div>
 </div>
@@ -2069,6 +2133,7 @@ function showSection(name, btn){
   if(name==='panel') focusForScanner(document.getElementById('scanInput'));
   if(name==='stock') renderStock();
   if(name==='inv') renderInvList();
+  if(name==='returns') renderReturns();
   if(name==='history') renderHistory();
   if(name==='stats') { renderStats(); renderReports(); }
   if(name==='settings'){ renderStorageStatus(); renderSyncStatusBox(); renderSoundRows(); }
@@ -2273,10 +2338,10 @@ function initQtyPads(){
   /* Количество вводится кнопками-цифрами под полем, само поле — только
      показывает число. Так не воюем с системной/встроенной клавиатурой:
      она для количества просто не нужна. */
-  ['prihodQtyPad','camQtyPad','qrQtyPad','qpQtyPad'].forEach(id=>{
+  ['prihodQtyPad','camQtyPad','qrQtyPad','qpQtyPad','rtQtyPad'].forEach(id=>{
     const el = document.getElementById(id); if(el) el.classList.toggle('on', touchQty);
   });
-  ['prihodQtyInput','camQtyInput','qrQtyInput','qpQtyInput'].forEach(id=>{
+  ['prihodQtyInput','camQtyInput','qrQtyInput','qpQtyInput','rtQtyInput'].forEach(id=>{
     const el = document.getElementById(id); if(el) el.readOnly = touchQty;
   });
 }
@@ -2836,6 +2901,141 @@ async function confirmQuickPrihod(){
   if(ok) toast(p.name + ' — приход +' + qty + ' шт');
 }
 
+/* ============================================================
+   ВОЗВРАТЫ
+   Покупатель вернул товар — он снова физически на складе, но выручку
+   и комиссию партнёрам за него один раз уже посчитали в первой продаже.
+   Поэтому и приход, и обратное списание при повторной отправке пишутся
+   Корректировкой (она не считается в «Расходах»/ABC и не создаёт
+   начисление), а не Приходом/Расходом. Метка isReturn — прямо в snap
+   (jsonb, уходит в синк как есть), список «Возвраты» — это просто
+   Корректировки с этой меткой, у которых ещё нет закрывающей пары.
+   ============================================================ */
+async function getOpenReturns(){
+  const hist = await getAllLive('history');
+  const closedRefs = new Set(
+    hist.filter(h=> h.snap && h.snap.returnClose && h.snap.returnRef).map(h=> h.snap.returnRef)
+  );
+  return hist
+    .filter(h=> h.type==='Корректировка' && h.snap && h.snap.isReturn && !h.snap.returnClose && !closedRefs.has(h.uid))
+    .sort((a,b)=> b.timestamp - a.timestamp);
+}
+async function renderReturns(){
+  const list = document.getElementById('returnsList');
+  const open = await getOpenReturns();
+  if(open.length===0){
+    list.innerHTML = emptyState('i-inbox','Возвратов нет','Нажмите «+», чтобы добавить товар, который вернул покупатель.');
+    return;
+  }
+  list.innerHTML = open.map(h=>`
+    <div class="row-item">
+      <input type="checkbox" class="inv-chk" aria-label="Отправлено покупателю снова" onchange="resolveReturn(${h.id}, this.checked, this)">
+      <div class="rmain">
+        <div class="rname">${escapeHtml(h.name)}</div>
+        <div class="rmeta">${escapeHtml(h.sku)} · ${h.date} ${h.time}</div>
+      </div>
+      <div class="rside">
+        <span class="rval pos">+${Math.abs(h.delta)} шт</span>
+        <button class="icon-btn" onclick="deleteReturnEntry(${h.id})" aria-label="Удалить"><svg class="icon"><use href="#i-trash"/></svg></button>
+      </div>
+    </div>`).join('');
+}
+
+/* Шаг 1 — выбрать товар из склада */
+function openReturnPick(){
+  document.getElementById('returnPickSearch').value = '';
+  renderReturnPickList();
+  document.getElementById('returnPickModalBg').classList.add('show');
+}
+function closeReturnPick(){
+  document.getElementById('returnPickModalBg').classList.remove('show');
+}
+async function renderReturnPickList(){
+  const q = (document.getElementById('returnPickSearch').value||'').toLowerCase();
+  const all = await getAllLive('products');
+  all.sort((a,b)=> a.name.localeCompare(b.name,'ru'));
+  const filtered = all.filter(p=> !q || p.name.toLowerCase().includes(q) || String(p.sku).toLowerCase().includes(q));
+  const list = document.getElementById('returnPickList');
+  if(filtered.length===0){ list.innerHTML = emptyLine('i-search','Ничего не найдено'); return; }
+  list.innerHTML = filtered.map(p=>`
+    <div class="row-item" style="cursor:pointer;" onclick="selectReturnProduct('${escapeAttr(p.sku)}')">
+      <div class="rmain">
+        <div class="rname">${escapeHtml(p.name)}</div>
+        <div class="rmeta">${escapeHtml(p.sku)} · на складе: ${p.totalStock} шт</div>
+      </div>
+    </div>`).join('');
+}
+
+/* Шаг 2 — сколько штук вернули */
+let pendingReturnProduct = null;
+async function selectReturnProduct(sku){
+  const p = await get('products', sku);
+  if(!p) return;
+  closeReturnPick();
+  pendingReturnProduct = p;
+  document.getElementById('rtName').textContent = p.name;
+  document.getElementById('rtStock').textContent = 'На складе сейчас: ' + (p.totalStock||0) + ' шт';
+  const input = document.getElementById('rtQtyInput');
+  input.value = 1;
+  qtyReplaceNext = true;
+  document.getElementById('returnQtyModalBg').classList.add('show');
+}
+function adjustReturnQty(delta){
+  const input = document.getElementById('rtQtyInput');
+  input.value = Math.max(1, Math.round(Number(input.value)||1) + delta);
+  qtyReplaceNext = true;
+}
+function closeReturnQty(){
+  pendingReturnProduct = null;
+  document.getElementById('returnQtyModalBg').classList.remove('show');
+}
+async function confirmReturnAdd(){
+  if(!pendingReturnProduct) return;
+  const p = pendingReturnProduct;
+  const qty = Math.max(1, Math.round(Number(document.getElementById('rtQtyInput').value)||1));
+  closeReturnQty();
+  await logHistory('Корректировка', p.barcode, p, qty, {delta: qty, extra:{isReturn:true}});
+  await new Promise(r=> setTimeout(r, 0));
+  await recalcStock(p.sku);
+  if(window.Sync && Sync.syncNow) Sync.syncNow('добавлен возврат');
+  toast(p.name + ' — возврат +' + qty + ' шт добавлен');
+  await renderReturns();
+  await renderStock();
+}
+
+/* Отправили этот же возврат покупателю снова: списываем со склада
+   Корректировкой (не Расходом — иначе выручка и комиссия партнёрам
+   посчитались бы во второй раз), закрывающая запись ссылается на
+   исходную через returnRef, ряд уходит из списка. */
+async function resolveReturn(id, checked, checkboxEl){
+  if(!checked) return;
+  const h = await get('history', id);
+  if(!h){ await renderReturns(); return; }
+  const qty = Math.abs(h.delta);
+  if(!confirm('Отметить «'+h.name+'» ('+qty+' шт) как отправленный покупателю снова?\n\nТовар спишется со склада. На выручку и комиссию партнёрам это не повлияет — они уже учтены в первой продаже.')){
+    if(checkboxEl) checkboxEl.checked = false;
+    return;
+  }
+  const p = await get('products', h.sku);
+  await logHistory('Корректировка', h.barcode, p || {sku:h.sku, name:h.name, totalStock:0}, qty, {
+    delta: -qty,
+    extra: {isReturn:true, returnClose:true, returnRef: h.uid}
+  });
+  await new Promise(r=> setTimeout(r, 0));
+  if(p) await recalcStock(p.sku);
+  if(window.Sync && Sync.syncNow) Sync.syncNow('возврат отправлен снова');
+  toast(h.name + ' — возврат отправлен, списано ' + qty + ' шт');
+  await renderReturns();
+  await renderStock();
+}
+
+/* Убрать возврат, добавленный по ошибке (ещё не отправлен снова) —
+   обычное удаление записи истории: остаток пересчитается сам. */
+async function deleteReturnEntry(id){
+  await deleteHistoryEntry(id);
+  await renderReturns();
+}
+
 function switchInputTab(tab){
   const isCam = tab==='camera';
   document.getElementById('tabScannerBtn').classList.toggle('active', !isCam);
@@ -3386,6 +3586,9 @@ async function logHistory(type, barcode, p, qty, opts){
       ? opts.delta
       : (type === 'Расход' ? -Math.abs(qty) : Math.abs(qty));
   const uid = newUid();
+  /* opts.extra — доп. метки прямо в снимке (jsonb, уходит в синк как есть),
+     не задевая расчёт денег: opEconomics читает только свои поля снимка. */
+  const snap = opts.extra ? Object.assign(priceSnapshot(p), opts.extra) : priceSnapshot(p);
   await put('history', {
     uid,
     date: now.toLocaleDateString('ru-RU'),
@@ -3395,7 +3598,7 @@ async function logHistory(type, barcode, p, qty, opts){
     delta,
     legacy: false,
     stockAfter: (Number(p.totalStock)||0) + delta,
-    snap: priceSnapshot(p)
+    snap
   });
   return uid;
 }
