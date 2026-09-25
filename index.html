@@ -991,7 +991,7 @@ body.labels-open{overflow:hidden;}
         <div class="t-caption" style="margin-top:8px;color:var(--text-tertiary);">Нужна, когда в конкретный день потратили не как обычно. Без поправки за день берётся сумма выше.</div>
       </div>
 
-      <div class="period-seg">
+      <div class="period-seg" id="finPeriodSeg">
         <button class="active" id="finPeriodBtn1" onclick="renderFinance(1,this)">Сегодня</button>
         <button id="finPeriodBtnYesterday" onclick="renderFinance('yesterday',this)">Вчера</button>
         <button id="finPeriodBtn7" onclick="renderFinance(7,this)">Неделя</button>
@@ -1014,12 +1014,18 @@ body.labels-open{overflow:hidden;}
         <div class="t-caption" id="finRingHint" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Нажмите на деление кольца или карточку — в центре появится сумма именно по ней. Нажмите ещё раз (или в центр), чтобы вернуться к выручке.</div>
       </div>
 
-      <div class="card">
+      <div class="period-seg">
+        <button class="active" id="finSubBtnPtp" onclick="switchFinSubTab('ptp')">ПТП</button>
+        <button id="finSubBtnAbc" onclick="switchFinSubTab('abc')">ABC</button>
+        <button id="finSubBtnRnr" onclick="switchFinSubTab('rnr')">РНР</button>
+      </div>
+
+      <div class="card" id="finSubPtp">
         <div class="card-head"><span class="t-eyebrow">Прибыль по товарам</span></div>
         <div id="financeByProduct"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="finSubAbc" hidden>
         <div class="card-head"><span class="t-eyebrow">ABC-анализ</span></div>
         <div class="btn-row">
           <button class="btn ghost sm" onclick="generateABC()">Сформировать</button>
@@ -1029,7 +1035,7 @@ body.labels-open{overflow:hidden;}
         <div id="abcList" style="margin-top:var(--sp-2);"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="finSubRnr" hidden>
         <div class="card-head"><span class="t-eyebrow">История расходов на рекламу</span></div>
         <div id="adSpendLog"></div>
       </div>
@@ -4764,7 +4770,7 @@ async function renderFinance(days, btnEl){
   currentFinancePeriod = days;
   const isCustom = typeof days === 'object' && days !== null;
   const ids = {1:'finPeriodBtn1','yesterday':'finPeriodBtnYesterday',7:'finPeriodBtn7',30:'finPeriodBtn30'};
-  document.querySelectorAll('.period-seg button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#finPeriodSeg button').forEach(b=>b.classList.remove('active'));
   // при своём периоде подсвечивается сам календарь
   const activeBtn = btnEl || document.getElementById(isCustom ? 'finPeriodBtnRange' : ids[days]);
   if(activeBtn) activeBtn.classList.add('active');
@@ -5016,6 +5022,19 @@ async function deleteAdSpend(dateKey){
 /* ============================================================
    ABC-АНАЛИЗ
    ============================================================ */
+/* Три карточки во «Расходах» — ПТП / ABC / РНР — показаны по одной,
+   переключаются как «Сегодня/Неделя/Месяц» у периода. */
+function switchFinSubTab(tab){
+  const map = {ptp:'Ptp', abc:'Abc', rnr:'Rnr'};
+  Object.keys(map).forEach(key=>{
+    const isActive = key === tab;
+    const btn = document.getElementById('finSubBtn'+map[key]);
+    const panel = document.getElementById('finSub'+map[key]);
+    if(btn) btn.classList.toggle('active', isActive);
+    if(panel) panel.hidden = !isActive;
+  });
+}
+
 async function generateABC(){
   const hist = await getAllLive('history');
   const products = await getAllLive('products');
