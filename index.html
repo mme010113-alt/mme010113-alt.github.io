@@ -2980,10 +2980,6 @@ async function resolveReturn(id, checked, checkboxEl){
   const h = await get('history', id);
   if(!h){ await renderReturns(); return; }
   const qty = Math.abs(h.delta);
-  if(!confirm('Отметить «'+h.name+'» ('+qty+' шт) как отправленный покупателю снова?\n\nТовар спишется со склада, в «Балансе → Не выплачено» появится запись «Возврат: '+h.name+'» с выплатой 0 ₽. На выручку и комиссию партнёрам это не повлияет — они уже учтены в первой продаже.')){
-    if(checkboxEl) checkboxEl.checked = false;
-    return;
-  }
   const p = await get('products', h.sku);
   const closeUid = await logHistory('Корректировка', h.barcode, p || {sku:h.sku, name:h.name, totalStock:0}, qty, {
     delta: -qty,
