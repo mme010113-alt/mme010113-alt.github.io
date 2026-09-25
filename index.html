@@ -3032,21 +3032,26 @@ async function resolveReturn(id, checked, checkboxEl){
   const h = await get('history', id);
   if(!h){ await renderReturns(); return; }
   const qty = Math.abs(h.delta);
-  if(!confirm('Отметить «'+h.name+'» ('+qty+' шт) как отправленный покупателю снова?\n\nТовар спишется со склада. На выручку и комиссию партнёрам это не повлияет — они уже учтены в первой продаже.')){
+  if(!confirm('Отметить «'+h.name+'» ('+qty+' шт) как отправленный покупателю снова?\n\nТовар спишется со склада, в «Балансе → Не выплачено» появится запись «Возврат: '+h.name+'» с выплатой 0 ₽. На выручку и комиссию партнёрам это не повлияет — они уже учтены в первой продаже.')){
     if(checkboxEl) checkboxEl.checked = false;
     return;
   }
   const p = await get('products', h.sku);
-  await logHistory('Корректировка', h.barcode, p || {sku:h.sku, name:h.name, totalStock:0}, qty, {
+  const closeUid = await logHistory('Корректировка', h.barcode, p || {sku:h.sku, name:h.name, totalStock:0}, qty, {
     delta: -qty,
     extra: {isReturn:true, returnClose:true, returnRef: h.uid}
   });
+  /* Строка в «Балансе» — только для журнала (см. createReturnBalanceEntry):
+     выплата 0 ₽, комиссию за эту продажу уже начислили в первый раз. */
+  await createReturnBalanceEntry(p || {sku:h.sku, name:h.name}, qty, closeUid);
   await new Promise(r=> setTimeout(r, 0));
   if(p) await recalcStock(p.sku);
   if(window.Sync && Sync.syncNow) Sync.syncNow('возврат отправлен снова');
   toast(h.name + ' — возврат отправлен, списано ' + qty + ' шт');
   await renderReturns();
   await renderStock();
+  const activeSec = document.querySelector('main section.active');
+  if(activeSec && activeSec.id === 'sec-balance') await renderBalance(currentBalancePeriod, null);
 }
 
 /* Убрать возврат, добавленный по ошибке (ещё не отправлен снова) —
@@ -3244,6 +3249,29 @@ async function createSaleCommission(p, qty, opUid){
     dateDisplay: new Date(now).toLocaleDateString('ru-RU')
   });
   if(window.Sync && Sync.syncNow) Sync.syncNow('продажа → комиссия');
+}
+
+/* Возврат отправлен покупателю повторно — строка в «Балансе» нужна только
+   для отметки в журнале, что товар снова уехал. Комиссию за него уже
+   заплатили при первой продаже, поэтому тут везде 0: и сумма, и ставка,
+   и выплата — чтобы «Сумма продаж»/«Продажи по ставкам» тоже не задвоились. */
+async function createReturnBalanceEntry(p, qty, opUid){
+  const now = Date.now();
+  await put('orders', {
+    uid: newUid(),
+    opUid: opUid || '',
+    source: 'return',
+    employee: '',
+    memberId: undefined,
+    amount: 0,
+    ratePercent: 0,
+    commission: 0,
+    note: 'Возврат: ' + p.name,
+    timestamp: now,
+    dateKey: todayDateKey(),
+    dateDisplay: new Date(now).toLocaleDateString('ru-RU')
+  });
+  if(window.Sync && Sync.syncNow) Sync.syncNow('возврат → баланс');
 }
 
 /* Убирает начисления, привязанные к операции (когда операцию удалили). */
