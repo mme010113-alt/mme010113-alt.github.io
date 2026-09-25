@@ -858,15 +858,6 @@ body.labels-open{overflow:hidden;}
         </div>
         <div id="reportsList" style="margin-top:var(--sp-2);"></div>
       </div>
-      <div class="card">
-        <div class="card-head"><span class="t-eyebrow">ABC-анализ</span></div>
-        <div class="btn-row">
-          <button class="btn ghost sm" onclick="generateABC()">Сформировать</button>
-          <button class="icon-btn-lg" id="abcDateBtn" onclick="openRangeModal('abc')" aria-label="Выбрать период"><svg class="icon"><use href="#i-calendar"/></svg></button>
-        </div>
-        <div class="t-caption" id="abcRangeLabel" style="display:none;margin-top:8px;color:var(--accent-strong);"></div>
-        <div id="abcList" style="margin-top:var(--sp-2);"></div>
-      </div>
     </section>
 
     <section id="sec-settings">
@@ -1029,6 +1020,16 @@ body.labels-open{overflow:hidden;}
       </div>
 
       <div class="card">
+        <div class="card-head"><span class="t-eyebrow">ABC-анализ</span></div>
+        <div class="btn-row">
+          <button class="btn ghost sm" onclick="generateABC()">Сформировать</button>
+          <button class="icon-btn-lg" id="abcDateBtn" onclick="openRangeModal('abc')" aria-label="Выбрать период"><svg class="icon"><use href="#i-calendar"/></svg></button>
+        </div>
+        <div class="t-caption" id="abcRangeLabel" style="display:none;margin-top:8px;color:var(--accent-strong);"></div>
+        <div id="abcList" style="margin-top:var(--sp-2);"></div>
+      </div>
+
+      <div class="card">
         <div class="card-head"><span class="t-eyebrow">История расходов на рекламу</span></div>
         <div id="adSpendLog"></div>
       </div>
@@ -1098,7 +1099,6 @@ body.labels-open{overflow:hidden;}
     <button class="active" onclick="showSection('panel',this)"><svg class="icon"><use href="#i-home"/></svg>Панель</button>
     <button onclick="showSection('stock',this)"><svg class="icon"><use href="#i-box"/></svg>Склад</button>
     <button onclick="showSection('history',this)"><svg class="icon"><use href="#i-clock"/></svg>История</button>
-    <button onclick="showSection('stats',this)"><svg class="icon"><use href="#i-chart"/></svg>Статист.</button>
     <button onclick="showSection('finance',this)"><svg class="icon"><use href="#i-wallet"/></svg>Расходы</button>
     <button onclick="showSection('balance',this)"><svg class="icon"><use href="#i-coins"/></svg>Баланс</button>
   </nav>
