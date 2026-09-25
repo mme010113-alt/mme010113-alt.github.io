@@ -860,7 +860,11 @@ body.labels-open{overflow:hidden;}
       </div>
       <div class="card">
         <div class="card-head"><span class="t-eyebrow">ABC-анализ</span></div>
-        <button class="btn ghost sm" onclick="generateABC()">Сформировать</button>
+        <div class="btn-row">
+          <button class="btn ghost sm" onclick="generateABC()">Сформировать</button>
+          <button class="icon-btn-lg" id="abcDateBtn" onclick="openRangeModal('abc')" aria-label="Выбрать период"><svg class="icon"><use href="#i-calendar"/></svg></button>
+        </div>
+        <div class="t-caption" id="abcRangeLabel" style="display:none;margin-top:8px;color:var(--accent-strong);"></div>
         <div id="abcList" style="margin-top:var(--sp-2);"></div>
       </div>
     </section>
@@ -4461,11 +4465,13 @@ function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
    разница только в том, куда уходит выбранный период. */
 let calTarget = 'finance';
 var historyRange = null;   // {start, end} или null — показывать всё
+var abcRange = null;       // {start, end} или null — ABC-анализ за всё время
 
 function openRangeModal(target){
   calTarget = target || 'finance';
   const current = (calTarget === 'history') ? historyRange
                 : (calTarget === 'balance') ? currentBalancePeriod
+                : (calTarget === 'abc') ? abcRange
                 : currentFinancePeriod;
   const isRange = current && typeof current === 'object';
 
@@ -4481,16 +4487,23 @@ function openRangeModal(target){
   document.querySelector('#rangeModalBg h3').textContent =
       (calTarget === 'history') ? 'Даты в истории'
     : (calTarget === 'balance') ? 'Период баланса'
+    : (calTarget === 'abc') ? 'Период ABC-анализа'
     : 'Свой период';
-  document.getElementById('calReset').style.display = (calTarget === 'history') ? 'flex' : 'none';
+  document.getElementById('calReset').style.display = (calTarget === 'history' || calTarget === 'abc') ? 'flex' : 'none';
 
   renderCal();
   document.getElementById('rangeModalBg').classList.add('show');
 }
 
 async function resetCalRange(){
-  historyRange = null;
   closeRangeModal();
+  if(calTarget === 'abc'){
+    abcRange = null;
+    updateAbcRangeLabel();
+    await generateABC();
+    return;
+  }
+  historyRange = null;
   updateHistoryRangeLabel();
   await renderHistory();
 }
@@ -4502,6 +4515,20 @@ function updateHistoryRangeLabel(){
     label.style.display = 'block';
     label.textContent = 'Показаны даты: ' + new Date(historyRange.start).toLocaleDateString('ru-RU')
         + ' – ' + new Date(historyRange.end).toLocaleDateString('ru-RU');
+    if(btn) btn.classList.add('active-filter');
+  } else {
+    label.style.display = 'none';
+    if(btn) btn.classList.remove('active-filter');
+  }
+}
+function updateAbcRangeLabel(){
+  const label = document.getElementById('abcRangeLabel');
+  const btn = document.getElementById('abcDateBtn');
+  if(!label) return;
+  if(abcRange){
+    label.style.display = 'block';
+    label.textContent = 'Период: ' + new Date(abcRange.start).toLocaleDateString('ru-RU')
+        + ' – ' + new Date(abcRange.end).toLocaleDateString('ru-RU');
     if(btn) btn.classList.add('active-filter');
   } else {
     label.style.display = 'none';
@@ -4598,6 +4625,12 @@ async function applyCalRange(){
   }
   if(calTarget === 'balance'){
     await renderBalance(range, null);
+    return;
+  }
+  if(calTarget === 'abc'){
+    abcRange = range;
+    updateAbcRangeLabel();
+    await generateABC();
     return;
   }
   await renderFinance(range, null);
@@ -4989,7 +5022,7 @@ async function generateABC(){
   const hist = await getAllLive('history');
   const products = await getAllLive('products');
   const bySku = {};
-  hist.filter(h=>h.type==='Расход').forEach(h=>{
+  hist.filter(h=> h.type==='Расход' && (!abcRange || (h.timestamp>=abcRange.start && h.timestamp<=abcRange.end))).forEach(h=>{
     const p = products.find(x=>x.sku===h.sku);
     const e = opEconomics(h, p);
     if(!e) return;
@@ -5008,7 +5041,7 @@ async function generateABC(){
     r.cls = cum<=80?'A':(cum<=95?'B':'C');
   });
   const list = document.getElementById('abcList');
-  if(rows.length===0){ list.innerHTML = emptyLine('i-chart','Нет продаж — анализ появится после расходов'); return; }
+  if(rows.length===0){ list.innerHTML = emptyLine('i-chart', abcRange ? 'Нет продаж за выбранный период' : 'Нет продаж — анализ появится после расходов'); return; }
   list.innerHTML = rows.map((r,idx)=>`
     <div class="row-item">
       <div class="rmain"><div class="rname">${idx+1}. ${escapeHtml(r.name)}</div><div class="rmeta">${r.qty} шт · ${Math.round(r.revenue)} ₽ · накопл. ${r.cum}%</div></div>
