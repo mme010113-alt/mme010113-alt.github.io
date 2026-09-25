@@ -593,6 +593,7 @@ body.labels-open{overflow:hidden;}
   <symbol id="i-in" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></symbol>
   <symbol id="i-out" viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5"/><path d="M5 20h14"/></symbol>
   <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 12h4l2 3h6l2-3h4"/><path d="M5.5 5h13l2.5 7v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7l2.5-7Z"/></symbol>
+  <symbol id="i-hammer" viewBox="0 0 24 24"><path d="M15 4l5 5-3 3-5-5 3-3Z"/><path d="M14 8 5.5 16.5a2 2 0 0 0 0 2.8l1.2 1.2a2 2 0 0 0 2.8 0L18 12"/></symbol>
   <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2H17a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2v-9Z"/><path d="M15.5 12.2h3.2a1.3 1.3 0 0 1 0 2.6h-3.2a1.3 1.3 0 0 1 0-2.6Z"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3.2"/></symbol>
   <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M4 4l16 16"/><path d="M9.9 5.9A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-3.4 4.1M6.6 7.9A17 17 0 0 0 2.5 12S6 18.5 12 18.5c.9 0 1.7-.1 2.5-.4"/><path d="M9.8 9.9a3.2 3.2 0 0 0 4.4 4.4"/></symbol>
@@ -761,8 +762,18 @@ body.labels-open{overflow:hidden;}
         </div>
         <p id="returnsSub">Товары, которые вернул покупатель — до повторной отправки</p>
       </div>
-      <div class="card">
+
+      <div class="period-seg" id="returnsSubSeg">
+        <button class="active" id="retSubBtnOpen" onclick="switchReturnsSubTab('open')">Возвраты</button>
+        <button id="retSubBtnDamaged" onclick="switchReturnsSubTab('damaged')">Повреждённые</button>
+      </div>
+
+      <div class="card" id="retSubOpen">
         <div id="returnsList"></div>
+      </div>
+
+      <div class="card" id="retSubDamaged" hidden>
+        <div id="damagedList"></div>
       </div>
     </section>
 
@@ -2888,45 +2899,103 @@ async function getOpenReturns(){
     .filter(h=> h.type==='Корректировка' && h.snap && h.snap.isReturn && !h.snap.returnClose && !closedRefs.has(h.uid))
     .sort((a,b)=> b.timestamp - a.timestamp);
 }
+async function getDamagedReturns(){
+  const hist = await getAllLive('history');
+  return hist
+    .filter(h=> h.type==='Корректировка' && h.snap && h.snap.returnClose && h.snap.returnAction==='damaged')
+    .sort((a,b)=> b.timestamp - a.timestamp);
+}
+function switchReturnsSubTab(tab){
+  const isDamaged = tab==='damaged';
+  const openBtn = document.getElementById('retSubBtnOpen');
+  const damBtn = document.getElementById('retSubBtnDamaged');
+  const openPanel = document.getElementById('retSubOpen');
+  const damPanel = document.getElementById('retSubDamaged');
+  if(openBtn) openBtn.classList.toggle('active', !isDamaged);
+  if(damBtn) damBtn.classList.toggle('active', isDamaged);
+  if(openPanel) openPanel.hidden = isDamaged;
+  if(damPanel) damPanel.hidden = !isDamaged;
+}
 async function renderReturns(){
-  const list = document.getElementById('returnsList');
   const emp = isEmployee();
   let open = await getOpenReturns();
+  let damaged = await getDamagedReturns();
   if(emp){
     const from = partnerFromTs();
     open = open.filter(h=> (h.timestamp||0) >= from);
+    damaged = damaged.filter(h=> (h.timestamp||0) >= from);
   }
   const sub = document.getElementById('returnsSub');
   if(sub) sub.textContent = emp
     ? 'Товары, которые вы вернули — пока не отправлены покупателю снова'
     : 'Товары, которые вернул покупатель — до повторной отправки';
+
+  const list = document.getElementById('returnsList');
   if(open.length===0){
     list.innerHTML = emptyState('i-inbox','Возвратов нет', emp ? 'Пока ничего не возвращали.' : 'Нажмите «+», чтобы добавить товар, который вернул покупатель.');
-    return;
+  } else {
+    /* Партнёру — только просмотр: без галочки «отправлено снова», без
+       молоточка и без удаления, эти действия делает владелец. */
+    list.innerHTML = open.map(h=> emp ? `
+      <div class="row-item">
+        <div class="rmain">
+          <div class="rname">${escapeHtml(h.name)}</div>
+          <div class="rmeta">${escapeHtml(h.sku)} · ${h.date} ${h.time}</div>
+        </div>
+        <div class="rside">
+          <span class="rval pos">+${Math.abs(h.delta)} шт</span>
+        </div>
+      </div>` : `
+      <div class="row-item">
+        <input type="checkbox" class="inv-chk" aria-label="Отправлено покупателю снова" onchange="resolveReturn(${h.id}, this.checked, this)">
+        <div class="rmain">
+          <div class="rname">${escapeHtml(h.name)}</div>
+          <div class="rmeta">${escapeHtml(h.sku)} · ${h.date} ${h.time}</div>
+        </div>
+        <div class="rside">
+          <span class="rval pos">+${Math.abs(h.delta)} шт</span>
+          <button class="icon-btn" onclick="markReturnDamaged(${h.id})" aria-label="Повреждён"><svg class="icon"><use href="#i-hammer"/></svg></button>
+          <button class="icon-btn" onclick="deleteReturnEntry(${h.id})" aria-label="Удалить"><svg class="icon"><use href="#i-trash"/></svg></button>
+        </div>
+      </div>`).join('');
   }
-  /* Партнёру — только просмотр: без галочки «отправлено снова» и без
-     удаления, эти действия делает владелец. */
-  list.innerHTML = open.map(h=> emp ? `
-    <div class="row-item">
-      <div class="rmain">
-        <div class="rname">${escapeHtml(h.name)}</div>
-        <div class="rmeta">${escapeHtml(h.sku)} · ${h.date} ${h.time}</div>
-      </div>
-      <div class="rside">
-        <span class="rval pos">+${Math.abs(h.delta)} шт</span>
-      </div>
-    </div>` : `
-    <div class="row-item">
-      <input type="checkbox" class="inv-chk" aria-label="Отправлено покупателю снова" onchange="resolveReturn(${h.id}, this.checked, this)">
-      <div class="rmain">
-        <div class="rname">${escapeHtml(h.name)}</div>
-        <div class="rmeta">${escapeHtml(h.sku)} · ${h.date} ${h.time}</div>
-      </div>
-      <div class="rside">
-        <span class="rval pos">+${Math.abs(h.delta)} шт</span>
-        <button class="icon-btn" onclick="deleteReturnEntry(${h.id})" aria-label="Удалить"><svg class="icon"><use href="#i-trash"/></svg></button>
-      </div>
-    </div>`).join('');
+
+  const dlist = document.getElementById('damagedList');
+  if(dlist){
+    dlist.innerHTML = damaged.length===0
+      ? emptyState('i-hammer','Повреждённых нет', 'Молоточек на товаре в «Возвратах» переносит его сюда.')
+      : damaged.map(h=>`
+        <div class="row-item">
+          <div class="rmain">
+            <div class="rname">${escapeHtml(h.name)}</div>
+            <div class="rmeta">${escapeHtml(h.sku)} · ${h.date} ${h.time}</div>
+          </div>
+          <div class="rside">
+            <span class="rval neg">${Math.abs(h.delta)} шт</span>
+          </div>
+        </div>`).join('');
+  }
+}
+
+/* Возврат оказался повреждённым: со склада списывается (как и при обычной
+   повторной отправке — товар больше не сельный), но вместо «Баланса» и
+   выручки просто переезжает в отдельный список «Повреждённые», без всяких
+   денежных последствий — это чисто учёт по факту. */
+async function markReturnDamaged(id){
+  const h = await get('history', id);
+  if(!h){ await renderReturns(); return; }
+  const qty = Math.abs(h.delta);
+  const p = await get('products', h.sku);
+  await logHistory('Корректировка', h.barcode, p || {sku:h.sku, name:h.name, totalStock:0}, qty, {
+    delta: -qty,
+    extra: {isReturn:true, returnClose:true, returnRef: h.uid, returnAction:'damaged'}
+  });
+  await new Promise(r=> setTimeout(r, 0));
+  if(p) await recalcStock(p.sku);
+  if(window.Sync && Sync.syncNow) Sync.syncNow('возврат помечен повреждённым');
+  toast(h.name + ' — помечено повреждённым, списано ' + qty + ' шт со склада');
+  await renderReturns();
+  await renderStock();
 }
 
 /* Выбор товара из склада для возврата — тап по строке сразу добавляет 1 шт. */
@@ -2983,7 +3052,7 @@ async function resolveReturn(id, checked, checkboxEl){
   const p = await get('products', h.sku);
   const closeUid = await logHistory('Корректировка', h.barcode, p || {sku:h.sku, name:h.name, totalStock:0}, qty, {
     delta: -qty,
-    extra: {isReturn:true, returnClose:true, returnRef: h.uid}
+    extra: {isReturn:true, returnClose:true, returnRef: h.uid, returnAction:'reship'}
   });
   /* Строка в «Балансе» — только для журнала (см. createReturnBalanceEntry):
      выплата 0 ₽, комиссию за эту продажу уже начислили в первый раз. */
