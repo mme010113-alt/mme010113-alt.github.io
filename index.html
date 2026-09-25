@@ -3736,24 +3736,24 @@ async function renderHistory(){
   }).join('');
 }
 
-/* Остаток товара НА МОМЕНТ этой операции (а не сейчас) — чтобы можно было
-   сверить прошлую запись саму по себе, без влияния более поздних приходов
-   и расходов. Считаем так же, как «источник правды» остатка вообще: сумма
-   приращений живых (не удалённых, не legacy) операций по этому товару в
-   хронологическом порядке, вплоть до и включая эту самую запись. */
-async function stockAtHistoryId(id, sku){
+/* Остаток товара ПЕРЕД этой операцией (а не после и не сейчас) — чтобы
+   сверить саму запись: было столько-то, применили +N/−N из этой строки.
+   Считаем так же, как «источник правды» остатка вообще: сумма приращений
+   живых (не удалённых, не legacy) операций по этому товару в хронологическом
+   порядке, но останавливаемся, не доходя до самой этой записи. */
+async function stockBeforeHistoryId(id, sku){
   const ops = (await historyBySku(sku)).filter(o=> !o.legacy && !o.deletedAt);
   ops.sort((a,b)=> (a.timestamp - b.timestamp) || (a.id - b.id));
   let stock = 0;
   for(const op of ops){
+    if(op.id === id) return stock;   // остаток до этой записи, саму её не прибавляем
     stock += historyDelta(op);
-    if(op.id === id) return stock;
   }
   return null;   // сама запись не участвует в сумме (удалена/legacy)
 }
 
-/* Показывает/убирает рядом с количеством операции остаток на тот момент —
-   не уходя со «Склада» и обратно, чтобы свериться. */
+/* Показывает/убирает рядом с количеством операции остаток, который был
+   ДО неё, — не уходя со «Склада» и обратно, чтобы свериться. */
 async function toggleHistoryStock(e, el, id, sku){
   if(e) e.stopPropagation();
   if(el.dataset.showingStock === '1'){
@@ -3762,8 +3762,8 @@ async function toggleHistoryStock(e, el, id, sku){
     return;
   }
   el.dataset.baseText = el.textContent;
-  const stock = await stockAtHistoryId(id, sku);
-  el.textContent = el.dataset.baseText + (stock === null ? ' · остаток неизвестен' : (' · остаток тогда: ' + stock + ' шт'));
+  const stock = await stockBeforeHistoryId(id, sku);
+  el.textContent = el.dataset.baseText + (stock === null ? ' · остаток неизвестен' : (' · остаток прошлый: ' + stock + ' шт'));
   el.dataset.showingStock = '1';
 }
 
