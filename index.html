@@ -3714,11 +3714,14 @@ async function renderHistory(){
     }
     const skuLine = `<div class="rmeta" style="font-family:var(--font-mono);color:var(--text-secondary);">${escapeHtml(h.sku || '—')}</div>`;
     const dtLine  = `<div class="rmeta">${h.date} · ${h.time} · ${h.type}</div>`;
+    /* Нажатие на количество — показать текущий остаток этого товара рядом,
+       не уходя со «Склада» на «Историю» и обратно. */
+    const valSpan = `<span class="rval ${cls}" style="cursor:pointer;" onclick="toggleHistoryStock(event,this,'${escapeAttr(h.sku)}')">${display} шт</span>`;
     if(emp){
       return `
       <div class="row-item">
         <div class="rmain"><div class="rname">${escapeHtml(h.name)}</div>${skuLine}${dtLine}</div>
-        <div class="rside"><span class="rval ${cls}">${display} шт</span></div>
+        <div class="rside">${valSpan}</div>
       </div>`;
     }
     return `
@@ -3726,11 +3729,26 @@ async function renderHistory(){
       <input type="checkbox" class="hist-chk" aria-label="Выбрать запись" ${historySelection.has(h.id)?'checked':''} onchange="toggleHistorySelection(${h.id}, this.checked)">
       <div class="rmain"><div class="rname">${escapeHtml(h.name)}</div>${skuLine}${dtLine}</div>
       <div class="rside">
-        <span class="rval ${cls}">${display} шт</span>
+        ${valSpan}
         <button class="icon-btn" onclick="deleteHistoryEntry(${h.id})" aria-label="Удалить запись"><svg class="icon"><use href="#i-trash"/></svg></button>
       </div>
     </div>`;
   }).join('');
+}
+
+/* Показывает/убирает рядом с количеством операции текущий остаток товара —
+   не уходя со «Склада» и обратно, чтобы свериться. */
+async function toggleHistoryStock(e, el, sku){
+  if(e) e.stopPropagation();
+  if(el.dataset.showingStock === '1'){
+    el.textContent = el.dataset.baseText;
+    delete el.dataset.showingStock;
+    return;
+  }
+  el.dataset.baseText = el.textContent;
+  const p = await get('products', sku);
+  el.textContent = el.dataset.baseText + (p ? (' · сейчас ' + p.totalStock + ' шт') : ' · товар удалён');
+  el.dataset.showingStock = '1';
 }
 
 /* ---- выбор записей истории галочками для массового исправления ---- */
