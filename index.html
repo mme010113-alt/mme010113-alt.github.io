@@ -1343,48 +1343,16 @@ body.labels-open{overflow:hidden;}
   </div>
 </div>
 
-<!-- Возврат, шаг 1: выбрать товар из склада -->
+<!-- Возврат: выбрал товар — сразу +1 шт в «Возвраты», без лишнего шага
+     с количеством. Нужно больше одной штуки — тапаем по товару снова. -->
 <div class="modal-bg" id="returnPickModalBg" data-close="closeReturnPick">
   <div class="modal">
     <div class="modal-grip"></div>
     <h3>Какой товар вернули</h3>
     <input type="text" id="returnPickSearch" placeholder="Поиск по SKU или названию" oninput="renderReturnPickList()" style="margin-bottom:var(--sp-3);">
+    <div class="t-caption" style="margin:-4px 0 var(--sp-3);color:var(--text-tertiary);">Нажмите на товар — сразу добавится 1 шт. Вернули больше — нажмите ещё раз.</div>
     <div id="returnPickList" style="max-height:50vh;overflow-y:auto;"></div>
-    <button class="btn ghost" style="margin-top:var(--sp-3);" onclick="closeReturnPick()">Отмена</button>
-  </div>
-</div>
-
-<!-- Возврат, шаг 2: количество — та же клавиатура-степпер, что и у прихода/расхода -->
-<div class="modal-bg" id="returnQtyModalBg" data-close="closeReturnQty">
-  <div class="modal">
-    <div class="modal-grip"></div>
-    <h3>Сколько вернули</h3>
-    <div class="ccname" id="rtName"></div>
-    <div class="ccstock" id="rtStock"></div>
-    <div class="qty-stepper">
-      <button onclick="adjustReturnQty(-1)" aria-label="Меньше">−</button>
-      <input type="number" id="rtQtyInput" value="1" min="1" inputmode="numeric" enterkeyhint="done">
-      <button onclick="adjustReturnQty(1)" aria-label="Больше">+</button>
-    </div>
-    <div class="qty-pad" id="rtQtyPad">
-      <button onclick="padKey('rtQtyInput','1')">1</button>
-      <button onclick="padKey('rtQtyInput','2')">2</button>
-      <button onclick="padKey('rtQtyInput','3')">3</button>
-      <button onclick="padKey('rtQtyInput','4')">4</button>
-      <button onclick="padKey('rtQtyInput','5')">5</button>
-      <button onclick="padKey('rtQtyInput','6')">6</button>
-      <button onclick="padKey('rtQtyInput','7')">7</button>
-      <button onclick="padKey('rtQtyInput','8')">8</button>
-      <button onclick="padKey('rtQtyInput','9')">9</button>
-      <button class="aux" onclick="padKey('rtQtyInput','clear')" aria-label="Сбросить">C</button>
-      <button onclick="padKey('rtQtyInput','0')">0</button>
-      <button class="aux" onclick="padKey('rtQtyInput','back')" aria-label="Стереть">⌫</button>
-    </div>
-    <div class="t-caption" style="margin-top:8px;color:var(--text-tertiary);">Товар вернётся на остаток «Склада». На выручку и комиссию партнёрам это не повлияет — они уже учтены в первой продаже.</div>
-    <div class="btn-row" style="margin-top:var(--sp-3);">
-      <button class="btn ghost sm" onclick="closeReturnQty()">Отмена</button>
-      <button class="btn primary sm" onclick="confirmReturnAdd()"><svg class="icon"><use href="#i-inbox"/></svg>Добавить в возвраты</button>
-    </div>
+    <button class="btn ghost" style="margin-top:var(--sp-3);" onclick="closeReturnPick()">Готово</button>
   </div>
 </div>
 
@@ -2338,10 +2306,10 @@ function initQtyPads(){
   /* Количество вводится кнопками-цифрами под полем, само поле — только
      показывает число. Так не воюем с системной/встроенной клавиатурой:
      она для количества просто не нужна. */
-  ['prihodQtyPad','camQtyPad','qrQtyPad','qpQtyPad','rtQtyPad'].forEach(id=>{
+  ['prihodQtyPad','camQtyPad','qrQtyPad','qpQtyPad'].forEach(id=>{
     const el = document.getElementById(id); if(el) el.classList.toggle('on', touchQty);
   });
-  ['prihodQtyInput','camQtyInput','qrQtyInput','qpQtyInput','rtQtyInput'].forEach(id=>{
+  ['prihodQtyInput','camQtyInput','qrQtyInput','qpQtyInput'].forEach(id=>{
     const el = document.getElementById(id); if(el) el.readOnly = touchQty;
   });
 }
@@ -2961,7 +2929,7 @@ async function renderReturns(){
     </div>`).join('');
 }
 
-/* Шаг 1 — выбрать товар из склада */
+/* Выбор товара из склада для возврата — тап по строке сразу добавляет 1 шт. */
 function openReturnPick(){
   document.getElementById('returnPickSearch').value = '';
   renderReturnPickList();
@@ -2986,41 +2954,21 @@ async function renderReturnPickList(){
     </div>`).join('');
 }
 
-/* Шаг 2 — сколько штук вернули */
-let pendingReturnProduct = null;
+/* Тап по товару = сразу +1 шт в «Возвраты», без отдельного шага с
+   количеством — вернули больше одной штуки, тапаем по товару ещё раз.
+   Список остаётся открытым, чтобы можно было продолжать так же по другим
+   товарам подряд. */
 async function selectReturnProduct(sku){
   const p = await get('products', sku);
   if(!p) return;
-  closeReturnPick();
-  pendingReturnProduct = p;
-  document.getElementById('rtName').textContent = p.name;
-  document.getElementById('rtStock').textContent = 'На складе сейчас: ' + (p.totalStock||0) + ' шт';
-  const input = document.getElementById('rtQtyInput');
-  input.value = 1;
-  qtyReplaceNext = true;
-  document.getElementById('returnQtyModalBg').classList.add('show');
-}
-function adjustReturnQty(delta){
-  const input = document.getElementById('rtQtyInput');
-  input.value = Math.max(1, Math.round(Number(input.value)||1) + delta);
-  qtyReplaceNext = true;
-}
-function closeReturnQty(){
-  pendingReturnProduct = null;
-  document.getElementById('returnQtyModalBg').classList.remove('show');
-}
-async function confirmReturnAdd(){
-  if(!pendingReturnProduct) return;
-  const p = pendingReturnProduct;
-  const qty = Math.max(1, Math.round(Number(document.getElementById('rtQtyInput').value)||1));
-  closeReturnQty();
-  await logHistory('Корректировка', p.barcode, p, qty, {delta: qty, extra:{isReturn:true}});
+  await logHistory('Корректировка', p.barcode, p, 1, {delta: 1, extra:{isReturn:true}});
   await new Promise(r=> setTimeout(r, 0));
   await recalcStock(p.sku);
   if(window.Sync && Sync.syncNow) Sync.syncNow('добавлен возврат');
-  toast(p.name + ' — возврат +' + qty + ' шт добавлен');
+  toast(p.name + ' — возврат +1 шт добавлен');
   await renderReturns();
   await renderStock();
+  await renderReturnPickList();   // обновить «на складе: N шт» в самом списке
 }
 
 /* Отправили этот же возврат покупателю снова: списываем со склада
