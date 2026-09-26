@@ -10,6 +10,9 @@ const CHROME_MENUS = {
     {sep:true},
     {icon:'i-printer',  title:'Распечатать штрихкоды', action:'printBarcodesSelected()'},
     {icon:'i-download', title:'Накладная поставщику',  action:'exportSupplierInvoice()', needsSelection:true},
+    stockTab === 'stop'
+      ? {icon:'i-play',  title:'Вернуть в продажу',    action:'moveSelectedToStop(false)', needsSelection:true}
+      : {icon:'i-pause', title:'Добавить в стоп',      action:'moveSelectedToStop(true)',  needsSelection:true},
     {icon:'i-x',        title:'Снять выделение',       action:'clearInvoiceSelection()', needsSelection:true},
     {icon:'i-trash',    title:'Удалить выбранные',     action:'deleteSelectedProducts()', needsSelection:true, danger:true},
     {note: invoiceSelection.size
