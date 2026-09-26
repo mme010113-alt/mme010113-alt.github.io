@@ -448,14 +448,25 @@
   // ------------------------------------------------------------------
   async function pullStore(storeName, since){
     const spec = MAP[storeName];
-    const {data, error} = await client
-      .from(spec.table)
-      .select('*')
-      .gt('updated_at', since)
-      .order('updated_at', {ascending:true})
-      .limit(5000);
-    if(error) throw new Error(spec.table + ': ' + error.message);
-    if(!data || !data.length) return {applied:0, maxUpdated:since, touchedSkus:[]};
+    /* Сервер отдаёт за раз не больше 1000 строк, а одним запросом с лимитом
+       больше он молча обрежет — поэтому листаем страницами, пока не кончатся. */
+    const PAGE = 1000;
+    const keyCol = spec.conflict.split(',')[1];
+    const data = [];
+    for(let from = 0; ; from += PAGE){
+      const page = await client
+        .from(spec.table)
+        .select('*')
+        .gt('updated_at', since)
+        .order('updated_at', {ascending:true})
+        .order(keyCol, {ascending:true})
+        .range(from, from + PAGE - 1);
+      if(page.error) throw new Error(spec.table + ': ' + page.error.message);
+      const chunk = page.data || [];
+      data.push(...chunk);
+      if(chunk.length < PAGE) break;
+    }
+    if(!data.length) return {applied:0, maxUpdated:since, touchedSkus:[]};
 
     let maxUpdated = since;
     const touched = new Set();
@@ -503,6 +514,126 @@
       r.onsuccess = ()=> res(r.result);
       r.onerror = rej;
     });
+  }
+
+  // ------------------------------------------------------------------
+  // главное устройство
+  // Владелец с телефона, отмеченного «главным», может раздать свои данные
+  // на всё: сервер становится копией этого телефона, а остальные
+  // устройства при следующей связи сбрасывают свои данные и скачивают
+  // сервер заново. «Эпоха» — отметка времени последней такой раздачи:
+  // устройство, у которого записана более старая, обязано сбросить всё.
+  // ------------------------------------------------------------------
+  const EPOCH_KEY = 'masterEpoch';
+  const LOCAL_KEY = {
+    products: r=> r.sku, history: r=> r.uid, adspend: r=> r.dateKey,
+    orders: r=> r.uid, payouts: r=> r.uid
+  };
+
+  async function readRemoteEpoch(wsOwner){
+    const {data, error} = await client.from('app_settings').select('updated_at')
+      .eq('user_id', wsOwner).eq('key', EPOCH_KEY).limit(1);
+    if(error) throw new Error('epoch: ' + error.message);
+    return data && data.length ? num(data[0].updated_at) : 0;
+  }
+
+  /* Если после раздачи у нас записана более старая эпоха — стираем свои
+     данные (в том числе неотправленные: главный телефон важнее) и качаем
+     сервер с нуля. */
+  async function adoptEpochIfNeeded(wsOwner, stores){
+    const remote = await readRemoteEpoch(wsOwner);
+    const row = await window.get('settings', 'syncEpoch');
+    if(remote <= num(row && row.value)) return false;
+    for(const s of stores){ await window.clearStore(s); }
+    await window.put('settings', {key:'syncCursor', value: 0});
+    await window.put('settings', {key:'syncEpoch', value: remote});
+    return true;
+  }
+
+  async function listServerLiveKeys(table, keyCol, wsOwner){
+    const PAGE = 1000, keys = [];
+    for(let from = 0; ; from += PAGE){
+      const {data, error} = await client.from(table).select(keyCol)
+        .eq('user_id', wsOwner).is('deleted_at', null)
+        .order(keyCol, {ascending:true}).range(from, from + PAGE - 1);
+      if(error) throw new Error(table + ': ' + error.message);
+      const chunk = data || [];
+      chunk.forEach(r=> keys.push(String(r[keyCol])));
+      if(chunk.length < PAGE) break;
+    }
+    return keys;
+  }
+
+  async function publishAsMaster(onProgress){
+    const say = t=>{ try{ if(onProgress) onProgress(t); }catch(e){} };
+    if(!ready()) return {ok:false, error:'нет настроек'};
+    if(membership) return {ok:false, error:'раздавать данные может только владелец'};
+    if(!navigator.onLine) return {ok:false, error:'нет сети'};
+    const user = await currentUser();
+    if(!user) return {ok:false, error:'не выполнен вход'};
+
+    if(currentRun){ try{ await currentRun; }catch(e){} }
+    let resolveRun;
+    currentRun = new Promise(r=>{ resolveRun = r; });
+    syncing = true;
+    emit('syncing', {reason:'главное устройство'});
+    try{
+      const wsOwner = user.id;
+      const stores = ['products','history','adspend','orders','payouts'];
+      const optional = new Set(['orders','payouts']);
+      const missingTable = e => /does not exist|schema cache|Could not find the table/i.test(String(e && e.message || e));
+
+      /* Эпоху объявляем ПЕРВОЙ: остальные устройства, увидев её, сотрут свои
+         (возможно, устаревшие) неотправленные записи, а не вольют их в сервер
+         поверх наших. */
+      const now = Date.now();
+      const ep = await client.from('app_settings').upsert(
+        [{user_id: wsOwner, key: EPOCH_KEY, value: {by:'master'}, updated_at: now}],
+        {onConflict:'user_id,key'});
+      if(ep.error) throw new Error('epoch: ' + ep.error.message);
+      await window.put('settings', {key:'syncEpoch', value: now});
+
+      if(typeof window.repairHistoryRows === 'function') await window.repairHistoryRows();
+
+      let sent = 0, removed = 0;
+      for(const s of stores){
+        try{
+          const spec = MAP[s];
+          const keyCol = spec.conflict.split(',')[1];
+          const local = await window.getAll(s);
+
+          say('Сверяю с сервером: ' + spec.table + '…');
+          const liveKeys = new Set(local.filter(r=> !r.deletedAt).map(r=> String(LOCAL_KEY[s](r))));
+          const extra = (await listServerLiveKeys(spec.table, keyCol, wsOwner)).filter(k=> !liveKeys.has(k));
+          const t = Date.now();
+          for(let i=0; i<extra.length; i+=100){
+            const {error} = await client.from(spec.table)
+              .update({deleted_at: t, updated_at: t})
+              .eq('user_id', wsOwner).in(keyCol, extra.slice(i, i+100));
+            if(error) throw new Error(spec.table + ': ' + error.message);
+          }
+          removed += extra.length;
+
+          say('Отправляю: ' + spec.table + '…');
+          for(const r of local){ await window.put(s, r); }   // всё считаем «новым» — отправится целиком
+          sent += await pushStore(s, wsOwner);
+        }catch(e){
+          if(optional.has(s) && missingTable(e)) continue;
+          throw e;
+        }
+      }
+
+      const pending = (await window.getDirty('history')).length;
+      emit('idle', {sent, received:0, pending, at: Date.now()});
+      return {ok:true, sent, removed};
+    }catch(e){
+      emit('error', {message: e.message});
+      return {ok:false, error: e.message};
+    }finally{
+      syncing = false;
+      currentRun = null;
+      if(resolveRun) resolveRun();
+    }
   }
 
   // ------------------------------------------------------------------
@@ -556,6 +687,10 @@
       const pullList = emp ? ['products','history','orders','payouts']
                            : ['products','history','adspend','orders','payouts'];
 
+      /* Главный телефон раздал данные после нашей последней связи — своё
+         стираем до отправки, чтобы старые правки не затёрли серверные. */
+      const mirrored = await adoptEpochIfNeeded(wsOwner, pullList);
+
       let sent = 0;
       for(const s of pushList){
         sent += await guard(s, ()=> pushStore(s, wsOwner));
@@ -594,6 +729,7 @@
 
       // остаток пересчитывается только у затронутых товаров
       for(const sku of skus){ await window.recalcStock(sku); }
+      if(mirrored && typeof window.toast === 'function') window.toast('Данные обновлены с главного телефона');
 
       const pending = (await window.getDirty('history')).length
                     + (await window.getDirty('products')).length
@@ -656,7 +792,7 @@
   setInterval(()=>{ if(ready() && navigator.onLine) syncNow('по расписанию'); }, 120000);
 
   window.Sync = {
-    init, start, signIn, signOut, changePassword, syncNow, currentUser,
+    init, start, signIn, signOut, changePassword, syncNow, currentUser, publishAsMaster,
     startRealtime, stopRealtime, onStatus, ready, lastLogin,
     isConfigured: ()=> Boolean(CFG.url && CFG.key),
     // роли и кабинет сотрудника
