@@ -216,7 +216,10 @@ async function saveReorderLead(){
   await renderReorderCard();
 }
 
-async function computeForecast(){
+function computeForecast(){
+  return cachedByVersion('forecast:' + reorderLeadDays() + ':' + dayStart(Date.now()), computeForecastNow);
+}
+async function computeForecastNow(){
   const rows = await salesRows();
   const today = dayStart(Date.now()), from = today - 30*DAY_MS;
   const by = {};
@@ -227,11 +230,13 @@ async function computeForecast(){
   }
   const lead = reorderLeadDays();
   const out = {};
+  const rb = await returnsBySku();
   for(const p of await getAllLive('products')){
+    if(p.stopped) continue;   // в «Стопе» — не продаём, заказывать не нужно
     const s = by[p.sku] || {sold: 0, first: Infinity};
     const days = Math.max(7, Math.min(30, Math.round((today - s.first) / DAY_MS)));
     const rate = s.sold / days;
-    const stock = Number(p.totalStock) || 0;
+    const stock = normalStock(p, rb);   // возвраты и повреждённые продавать как новые не будем
     const daysLeft = rate > 0 ? Math.max(0, stock) / rate : Infinity;
     let status = 'ok';
     if(stock <= 0 && rate > 0) status = 'out';
