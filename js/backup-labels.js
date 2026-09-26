@@ -186,6 +186,44 @@ function importBackup(e){
   reader.readAsText(file);
   e.target.value='';
 }
+/* ---- копии на сервере ---- */
+const SNAP_KIND = {daily:'Ежедневная', manual:'Вручную', 'before-restore':'До отката'};
+async function renderSnapshots(){
+  const card = document.getElementById('snapshotsCard'), box = document.getElementById('snapshotsList');
+  if(!card || !box) return;
+  const can = window.Sync && Sync.isConfigured() && !isEmployee();
+  card.hidden = !can;
+  if(!can) return;
+  if(!(await Sync.currentUser())){ box.innerHTML = emptyLine('i-alert', 'Войдите в аккаунт, чтобы видеть копии'); return; }
+  let list;
+  try{ list = await Sync.listSnapshots(); }
+  catch(e){ box.innerHTML = emptyLine('i-alert', navigator.onLine ? 'Не удалось загрузить список копий' : 'Нет сети — список копий недоступен'); return; }
+  if(!list.length){ box.innerHTML = emptyLine('i-alert', 'Копий пока нет — первая появится этой ночью'); return; }
+  const master = isMasterDevice();
+  box.innerHTML = list.map(s=>{
+    const d = new Date(s.taken_at), c = s.counts || {};
+    const when = d.toLocaleDateString('ru-RU', {day:'numeric', month:'long'}) + ', ' + d.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+    return `<div class="row-item">
+      <div class="rmain"><div class="rname">${escapeHtml(when)}</div>
+        <div class="rmeta">${SNAP_KIND[s.kind] || escapeHtml(s.kind)} · ${c.products||0} ${pluralTovar(c.products||0)} · ${c.operations||0} операций</div></div>
+      <button class="btn ghost sm" style="width:auto;" ${master ? '' : 'disabled'} onclick="restoreSnapshotUI(${Number(s.id)}, '${escapeAttr(when)}')">Откатить</button>
+    </div>`;
+  }).join('') + (master ? '' : `<div class="t-caption" style="margin-top:8px;color:var(--text-secondary);">Откатить можно только на главном устройстве (галочка выше).</div>`);
+}
+async function snapshotNow(){
+  const r = await Sync.takeSnapshot('manual');
+  toast(r.ok ? 'Копия сохранена на сервере' : ('Не вышло: ' + r.error));
+  await renderSnapshots();
+}
+async function restoreSnapshotUI(id, when){
+  if(!isMasterDevice()){ toast('Откатить можно только на главном устройстве'); return; }
+  if(!confirm('Откатить ВСЕ данные к копии от ' + when + '?\n\nТовары, история, начисления и реклама на всех телефонах станут такими, как тогда. Всё, что сделано после, пропадёт из приложения — но нынешнее состояние сначала сохранится копией «До отката», её можно вернуть так же.')) return;
+  const r = await Sync.restoreSnapshot(id, t=> toast(t));
+  toast(r.ok ? ('Готово: данные откатились к ' + when + '. Остальные телефоны обновятся сами.') : ('Не вышло: ' + r.error));
+  await refreshAfterSync();
+  await renderSnapshots();
+}
+
 async function wipeAll(){
   if(!confirm('Удалить ВСЕ данные (товары, историю, отчёты, рекламу)? Это необратимо.')) return;
   await clearStore('products'); await clearStore('history');
