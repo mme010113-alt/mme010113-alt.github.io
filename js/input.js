@@ -758,3 +758,29 @@ async function confirmQuickPrihod(){
   if(ok) toast(p.name + ' — приход +' + qty + ' шт');
 }
 
+
+/* ============================================================
+   iOS: МЕНЮ ВНИЗУ «ЗАВИСАЕТ» ПОСЕРЕДИНЕ
+   Клавиатура на iPhone не сжимает окно, а сдвигает видимую область. После
+   её закрытия Safari иногда не возвращает область на место, и закреплённое
+   внизу меню остаётся висеть посреди экрана до следующей прокрутки.
+   Пока клавиатура открыта — меню прячем (над клавиатурой оно только
+   мешает); когда закрылась — показываем заново (это заставляет браузер
+   поставить его на место) и выравниваем страницу.
+   ============================================================ */
+(function(){
+  const vv = window.visualViewport;
+  if(!vv) return;
+  let kbOpen = false;
+  const realign = ()=>{ try{ window.scrollTo(window.scrollX, window.scrollY); }catch(e){} };
+  function check(){
+    const open = vv.height < window.innerHeight * 0.78;
+    if(open === kbOpen) return;
+    kbOpen = open;
+    document.body.classList.toggle('kb-open', open);
+    if(!open){ requestAnimationFrame(realign); setTimeout(realign, 120); }
+  }
+  vv.addEventListener('resize', check);
+  vv.addEventListener('scroll', ()=>{ if(!kbOpen && vv.offsetTop > 0) realign(); });
+  document.addEventListener('focusout', ()=> setTimeout(()=>{ check(); if(!kbOpen) realign(); }, 80));
+})();
