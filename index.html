@@ -1547,9 +1547,11 @@ async function recalcStock(sku){
   let stock = 0;
   byUid.forEach(h=>{ if(!h.legacy && !h.deletedAt) stock += historyDelta(h); });
   if(p.totalStock !== stock){
+    /* Остаток — производный кэш, на сервер он не ездит. Раньше запись шла
+       обычным put: карточка помечалась «изменённой», уезжала на сервер и
+       там затирала чужие правки и удаления этого товара с другого телефона. */
     p.totalStock = stock;
-    p.updatedAt = Date.now();
-    await put('products', p);
+    await putRaw('products', p);
   }
   return stock;
 }
@@ -1611,6 +1613,15 @@ function get(store,key){ return new Promise((res,rej)=>{ const r = tx(store).get
    dirty=1 значит «ещё не уехало на сервер». Записи, пришедшие с сервера,
    кладутся с fromSync:true — иначе они тут же уехали бы обратно. */
 const SYNCED_STORES = ['products','history','adspend','orders','payouts'];
+/* Правка сразу отправляется на сервер (с небольшой задержкой, чтобы серия
+   правок ушла одним обменом), а не ждёт двухминутного таймера. На время
+   массовых операций (импорт) отправка выключена. */
+let bulkWrite = 0, autoSyncTimer = null;
+function scheduleAutoSync(){
+  if(bulkWrite > 0 || !window.Sync || !Sync.isConfigured()) return;
+  clearTimeout(autoSyncTimer);
+  autoSyncTimer = setTimeout(()=>{ if(bulkWrite === 0 && Sync.ready()) Sync.syncNow('изменение'); }, 1500);
+}
 function put(store,val,opts){
   opts = opts || {};
   if(SYNCED_STORES.indexOf(store) !== -1){
@@ -1619,6 +1630,7 @@ function put(store,val,opts){
     } else {
       val.updatedAt = Date.now();
       val.dirty = 1;
+      scheduleAutoSync();
     }
   }
   return new Promise((res,rej)=>{ const r = tx(store,'readwrite').put(val); r.onsuccess=()=>res(r.result); r.onerror=rej; });
@@ -6199,6 +6211,8 @@ function importBackup(e){
          одну поправку остатка, так что цифры на разных телефонах расходились.
          Поэтому лишнее не стираем физически, а помечаем удалённым (это
          доедет до всех), а записи из файла оживляем под теми же uid. */
+      bulkWrite++;
+      try{
       const now = Date.now();
       const stripLocalFlags = (row)=>{ delete row.deletedAt; delete row.dirty; return row; };
 
@@ -6281,6 +6295,7 @@ function importBackup(e){
       syncInvActionUI();
       await renderStock(); await renderHistory(); await renderStats(); await renderReports(); await renderInvList();
       await updateProductCountPill();
+      }finally{ bulkWrite--; }
       toast('Данные заменены из файла');
       if(window.Sync && Sync.isConfigured() && !isEmployee()) await publishToAllPhones();
     }catch(err){ toast('Ошибка импорта: файл повреждён или имеет неверный формат'); }
