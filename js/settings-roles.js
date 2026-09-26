@@ -177,6 +177,7 @@ function isMasterDevice(){
 function setMasterDevice(on){
   try{ localStorage.setItem('sklad-master-device', on ? '1' : '0'); }catch(e){}
   applyMasterUI();
+  renderSnapshots();
   toast(on ? 'Это главное устройство: импорт разрешён' : 'Главное устройство снято');
 }
 function applyMasterUI(){
