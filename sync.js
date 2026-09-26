@@ -709,6 +709,28 @@
   }
 
   // ------------------------------------------------------------------
+  // партнёр: повреждённые возвраты (узкие серверные функции — прямой
+  // записи в данные склада у партнёра нет)
+  // ------------------------------------------------------------------
+  async function partnerMarkDamaged(returnUid){
+    if(!ready() || !membership) return {ok:false, error:'только для партнёра'};
+    if(!navigator.onLine) return {ok:false, error:'нужна сеть'};
+    const newUid = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(16).slice(2)));
+    const {error} = await client.rpc('partner_mark_damaged', {p_return_uid: returnUid, p_new_uid: newUid});
+    if(error) return {ok:false, error:error.message};
+    await syncNow('партнёр: повреждённый');
+    return {ok:true};
+  }
+  async function partnerRestoreDamaged(uid){
+    if(!ready() || !membership) return {ok:false, error:'только для партнёра'};
+    if(!navigator.onLine) return {ok:false, error:'нужна сеть'};
+    const {error} = await client.rpc('partner_restore_damaged', {p_uid: uid});
+    if(error) return {ok:false, error:error.message};
+    await syncNow('партнёр: вернул в возвраты');
+    return {ok:true};
+  }
+
+  // ------------------------------------------------------------------
   // резервные копии на сервере (таблица snapshots, функция take_snapshot)
   // ------------------------------------------------------------------
   const SNAP_TABLES = {products:'products', operations:'history', orders:'orders', payouts:'payouts', adspend:'adspend'};
@@ -922,7 +944,7 @@
 
   window.Sync = {
     init, start, signIn, signOut, changePassword, syncNow, currentUser, publishAsMaster, serverLiveUids,
-    takeSnapshot, listSnapshots, restoreSnapshot,
+    takeSnapshot, listSnapshots, restoreSnapshot, partnerMarkDamaged, partnerRestoreDamaged,
     startRealtime, stopRealtime, onStatus, ready, lastLogin,
     isConfigured: ()=> Boolean(CFG.url && CFG.key),
     // роли и кабинет сотрудника
