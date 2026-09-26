@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=78">
+<link rel="stylesheet" href="css/app.css?v=79">
 </head>
 <body>
 
@@ -56,6 +56,8 @@
   <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="18.5" r="1.6"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></symbol>
   <symbol id="i-qrcode" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M18 14h3v3h-3z"/><path d="M14 18h3v3h-3z"/><path d="M18 18h3v3h-3z"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/></symbol>
   <symbol id="i-coins" viewBox="0 0 24 24"><ellipse cx="8.5" cy="6.5" rx="5.5" ry="3"/><path d="M3 6.5v4c0 1.66 2.46 3 5.5 3s5.5-1.34 5.5-3v-4"/><path d="M14 10.2c2.9-.2 6-1.4 6-3.2M9 13.5v3.5c0 1.66 2.46 3 5.5 3s5.5-1.34 5.5-3V13"/></symbol>
 </svg>
 
@@ -198,21 +200,31 @@
         <p>Все товары, остатки и штрихкоды</p>
       </div>
 
+      <div class="period-seg stock-tabs" id="stockTabSeg" role="tablist">
+        <button data-v="active" class="active" onclick="setStockTab('active')">В продаже <span class="tab-count" id="stockCntActive"></span></button>
+        <button data-v="stop" onclick="setStockTab('stop')"><svg class="icon"><use href="#i-pause"/></svg>Стоп <span class="tab-count" id="stockCntStop"></span></button>
+      </div>
+
       <div class="t-caption" id="invoiceSelCount" style="margin-bottom:var(--sp-3);color:var(--text-tertiary);">Выбрано: 0 товаров</div>
 
       <div class="card">
         <div class="filter-row">
           <input type="text" id="stockSearch" placeholder="Поиск по SKU или названию" oninput="renderStock()">
-          <select id="supplierFilter" onchange="renderStock()" aria-label="Поставщик">
-            <option value="">Все поставщики</option>
-          </select>
-          <button class="icon-btn-lg" id="stockScanBtn" onclick="openScannerCapture(function(code){document.getElementById('stockSearch').value=code; renderStock();})" aria-label="Сканировать штрихкод"><svg class="icon"><use href="#i-keyboard"/></svg></button>
+          <!-- значение фильтра по поставщику; выбирается в окошке фильтра -->
+          <select id="supplierFilter" hidden aria-hidden="true"><option value="">Все поставщики</option></select>
+          <div class="filter-pop-wrap">
+            <button class="icon-btn-lg" id="stockFilterBtn" onclick="toggleStockFilter(event)" aria-label="Сортировка и поставщик" aria-haspopup="true" aria-expanded="false"><svg class="icon"><use href="#i-filter"/></svg><span class="filter-dot" id="stockFilterDot" hidden></span></button>
+            <div class="filter-pop" id="stockFilterPop" hidden>
+              <div class="t-eyebrow">Сортировка</div>
+              <div class="filter-opts" id="stockSortOpts"></div>
+              <div id="stockSupplierBlock">
+                <div class="t-eyebrow" style="margin-top:10px;">Поставщик</div>
+                <div class="filter-opts" id="stockSupplierOpts"></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="period-seg stock-sort" id="stockSortSeg" role="group" aria-label="Сортировка">
-          <button data-v="name" onclick="setStockSort('name')">А–Я</button>
-          <button data-v="asc" onclick="setStockSort('asc')">Меньше штук</button>
-          <button data-v="desc" onclick="setStockSort('desc')">Больше штук</button>
-        </div>
+        <div class="filter-sum" id="stockFilterSum" hidden></div>
         <div id="stockList"></div>
       </div>
     </section>
@@ -879,14 +891,17 @@
 
 <!-- Возврат: выбрал товар — сразу +1 шт в «Возвраты», без лишнего шага
      с количеством. Нужно больше одной штуки — тапаем по товару снова. -->
-<div class="modal-bg" id="returnPickModalBg" data-close="closeReturnPick">
+<!-- Окно открывается СВЕРХУ: на iPhone клавиатура наезжает на экран снизу
+     и закрывала поле поиска у обычной шторки. -->
+<div class="modal-bg top-sheet" id="returnPickModalBg" data-close="closeReturnPick">
   <div class="modal">
-    <div class="modal-grip"></div>
-    <h3>Какой товар вернули</h3>
-    <input type="text" id="returnPickSearch" placeholder="Поиск по SKU или названию" oninput="renderReturnPickList()" style="margin-bottom:var(--sp-3);">
-    <div class="t-caption" style="margin:-4px 0 var(--sp-3);color:var(--text-tertiary);">Нажмите на товар — сразу добавится 1 шт. Вернули больше — нажмите ещё раз.</div>
+    <div class="top-sheet-head">
+      <h3>Какой товар вернули</h3>
+      <button class="btn primary sm" style="width:auto;" onclick="closeReturnPick()">Готово</button>
+    </div>
+    <input type="text" id="returnPickSearch" placeholder="Поиск по SKU или названию" oninput="renderReturnPickList()" style="margin-bottom:var(--sp-2);">
+    <div class="t-caption" style="margin:0 0 var(--sp-2);color:var(--text-tertiary);">Нажмите на товар — сразу добавится 1 шт. Вернули больше — нажмите ещё раз.</div>
     <div id="returnPickList" style="max-height:50vh;overflow-y:auto;"></div>
-    <button class="btn ghost" style="margin-top:var(--sp-3);" onclick="closeReturnPick()">Готово</button>
   </div>
 </div>
 
@@ -918,19 +933,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=78"></script>
-<script src="js/db.js?v=78"></script>
-<script src="js/sync-ui.js?v=78"></script>
-<script src="js/input.js?v=78"></script>
-<script src="js/returns-scan.js?v=78"></script>
-<script src="js/sounds.js?v=78"></script>
-<script src="js/stock-history.js?v=78"></script>
-<script src="js/finance.js?v=78"></script>
-<script src="js/balance.js?v=78"></script>
-<script src="js/analytics.js?v=78"></script>
-<script src="js/settings-roles.js?v=78"></script>
-<script src="js/backup-labels.js?v=78"></script>
+<script src="sync-config.js?v=79"></script>
+<script src="js/db.js?v=79"></script>
+<script src="js/sync-ui.js?v=79"></script>
+<script src="js/input.js?v=79"></script>
+<script src="js/returns-scan.js?v=79"></script>
+<script src="js/sounds.js?v=79"></script>
+<script src="js/stock-history.js?v=79"></script>
+<script src="js/finance.js?v=79"></script>
+<script src="js/balance.js?v=79"></script>
+<script src="js/analytics.js?v=79"></script>
+<script src="js/settings-roles.js?v=79"></script>
+<script src="js/backup-labels.js?v=79"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=78"></script>
+<script src="sync.js?v=79"></script>
 </body>
 </html>
