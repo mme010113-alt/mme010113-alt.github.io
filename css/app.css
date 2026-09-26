@@ -542,3 +542,36 @@ body.labels-open{overflow:hidden;}
   .label-sheet .lbl .qr canvas,.label-sheet .lbl .qr img{width:26mm !important;height:26mm !important;max-width:none;max-height:none;}
   @page{size:A4 portrait;margin:8mm;}
 }
+
+/* ---- аналитика: графики продаж, тренды, прогноз ---- */
+.ch-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:var(--sp-2);}
+.ch-controls .ch-seg{flex:1 1 150px;margin-bottom:0;}
+.ch-hero{font-size:26px;font-weight:700;color:var(--text);line-height:1.1;margin-top:4px;}
+.ch-wrap{position:relative;margin-top:var(--sp-2);}
+.ch-svg{display:block;width:100%;height:auto;touch-action:pan-y;}
+.ch-svg .ch-bar{fill:var(--accent);transition:opacity .12s;}
+.ch-svg .ch-bar.dim{opacity:.35;}
+.ch-svg .ch-axis{font-size:9.5px;fill:var(--text-tertiary);font-family:var(--font-mono);}
+.ch-svg .ch-val{font-size:10px;font-weight:700;fill:var(--text);font-family:var(--font-mono);}
+.ch-tip{position:absolute;top:-6px;z-index:2;pointer-events:none;background:var(--surface-3);border:1px solid var(--border);border-radius:var(--r-sm);padding:6px 9px;box-shadow:0 6px 18px rgba(36,42,61,.12);display:flex;flex-direction:column;gap:1px;white-space:nowrap;}
+.ch-tip b{font-size:13px;color:var(--text);}
+.ch-tip span{font-size:11px;color:var(--text-secondary);}
+.ch-table{margin-top:var(--sp-2);}
+.ch-table summary{cursor:pointer;font-size:12px;color:var(--text-secondary);padding:4px 0;}
+.ch-group{margin:var(--sp-3) 0 2px;}
+.ch-spark{width:72px;height:22px;flex-shrink:0;}
+.trend{display:inline-flex;align-items:center;gap:3px;font-family:var(--font-mono);font-weight:700;font-size:12.5px;color:var(--text);white-space:nowrap;min-width:58px;justify-content:flex-end;}
+.trend .icon{width:13px;height:13px;}
+.trend.up .icon{color:var(--success);}
+.trend.down .icon{color:var(--danger);}
+.fc-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);padding:3px 7px;border-radius:999px;white-space:nowrap;border:1px solid;}
+.fc-badge .icon{width:12px;height:12px;}
+.fc-badge.order{background:var(--warning-soft);border-color:var(--warning-border);}
+.fc-badge.order .icon{color:var(--warning);}
+.fc-badge.out{background:var(--danger-soft);border-color:var(--danger-border);}
+.fc-badge.out .icon{color:var(--danger);}
+.fc-row .rside{flex-direction:column;align-items:flex-end;gap:4px;}
+.fc-row.idle .rname{color:var(--text-secondary);}
+.row-item .rmeta.fc-order{color:var(--text-secondary);font-weight:600;}
+.row-item .rmeta.fc-hint{display:flex;align-items:center;gap:4px;color:var(--text-secondary);}
+.row-item .rmeta.fc-hint .icon{width:12px;height:12px;color:var(--warning);flex-shrink:0;}
