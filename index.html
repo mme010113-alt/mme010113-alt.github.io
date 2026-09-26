@@ -6124,15 +6124,6 @@ async function exportBackup(){
   };
   downloadFile('sklad_backup_'+new Date().toISOString().slice(0,10)+'.json', JSON.stringify(data,null,2), 'application/json');
 }
-/* Импорт бэкапа.
-   Записи истории и отчётов нумеруются автоинкрементом, и раньше импорт в
-   НЕПУСТУЮ базу молча затирал существующие записи с теми же id — остатки
-   и отчёты после такого расходились с реальностью. Теперь спрашиваем
-   режим: «заменить» чистит хранилища и кладёт файл как есть, «добавить»
-   выдаёт импортируемым записям новые id и пропускает те, что уже есть. */
-function historySignature(h){
-  return [h.timestamp, h.sku, h.type, h.qty].join('|');
-}
 function importBackup(e){
   const file = e.target.files[0];
   if(!file) return;
@@ -6145,60 +6136,64 @@ function importBackup(e){
         return;
       }
 
-      const existingHistory = await getAllLive('history');
-      const hasData = existingHistory.length > 0 || (await getAllLive('products')).length > 0;
+      const hasData = (await getAllLive('history')).length > 0 || (await getAllLive('products')).length > 0;
+      if(hasData && !confirm(
+        'Загрузить файл как ГЛАВНЫЕ данные?\n\n' +
+        'Всё, чего нет в файле, будет удалено — и на этом телефоне, и на всех остальных (после синхронизации). ' +
+        'Остатки везде станут такими, как в файле.'
+      )) return;
 
-      let replace = true;
-      if(hasData){
-        replace = confirm(
-          'В приложении уже есть данные.\n\n' +
-          'ОК — ЗАМЕНИТЬ: текущие товары, история, отчёты и реклама будут стёрты и заменены файлом.\n' +
-          'Отмена — ДОБАВИТЬ: записи из файла добавятся к текущим, дубликаты пропустятся.'
-        );
+      /* Импорт — это «главный телефон»: сервер и остальные устройства должны
+         стать копией файла. Раньше «замена» чистила только этот телефон, а
+         серверные записи оставались — и каждая загрузка добавляла к ним ещё
+         одну поправку остатка, так что цифры на разных телефонах расходились.
+         Поэтому лишнее не стираем физически, а помечаем удалённым (это
+         доедет до всех), а записи из файла оживляем под теми же uid. */
+      const now = Date.now();
+      const stripLocalFlags = (row)=>{ delete row.deletedAt; delete row.dirty; return row; };
+
+      const fileProducts = (data.products || []).map(p=> stripLocalFlags(Object.assign({}, p)));
+      const fileSkus = new Set(fileProducts.map(p=> String(p.sku)));
+      for(const p of await getAll('products')){
+        if(!p.deletedAt && !fileSkus.has(String(p.sku))){ p.deletedAt = now; await put('products', p); }
       }
-
-      if(replace){
-        await clearStore('products'); await clearStore('history');
-        await clearStore('reports'); await clearStore('adspend');
-      }
-
-      if(data.products) for(const p of data.products) await put('products', p);
+      for(const p of fileProducts) await put('products', p);
 
       /* Записи из файла приводим к нынешнему виду: в бэкапах, снятых до
          перехода на новую модель, нет ни uid, ни delta, ни отметки legacy.
          Без этого сервер отвергает всю пачку («null value in column uid»),
          а остаток считается по неполным данным. */
-      if(data.history){
-        if(replace){
-          for(const h of data.history){
-            const copy = Object.assign({}, h);
-            normalizeHistoryRow(copy);
-            await put('history', copy);
-          }
-        } else {
-          const seen = new Set(existingHistory.map(historySignature));
-          for(const h of data.history){
-            if(seen.has(historySignature(h))) continue;
-            seen.add(historySignature(h));
-            const copy = Object.assign({}, h);
-            delete copy.id;              // пусть база выдаст свой id
-            normalizeHistoryRow(copy);
-            await put('history', copy);
-          }
-        }
+      const fileHistory = (data.history || []).map(h=>{
+        const copy = stripLocalFlags(Object.assign({}, h));
+        delete copy.id;                  // локальный id не переносим — ищем строку по uid
+        normalizeHistoryRow(copy);
+        return copy;
+      });
+      const fileUids = new Set(fileHistory.map(h=> h.uid));
+      const localByUid = new Map();
+      for(const h of await getAll('history')){
+        if(h.uid && !localByUid.has(h.uid)){ localByUid.set(h.uid, h); continue; }
+        if(h.uid) await del('history', h.id);          // локальный дубль uid — просто выбрасываем
+        else if(!h.deletedAt){ h.deletedAt = now; await put('history', h); }
+      }
+      for(const h of localByUid.values()){
+        if(!fileUids.has(h.uid) && !h.deletedAt){ h.deletedAt = now; await put('history', h); }
+      }
+      for(const copy of fileHistory){
+        const existing = localByUid.get(copy.uid);
+        if(existing) copy.id = existing.id;
+        await put('history', copy);
       }
 
-      if(data.reports){
-        for(const r of data.reports){
-          const copy = Object.assign({}, r);
-          if(!replace) delete copy.id;
-          await put('reports', copy);
-        }
-      }
+      /* отчёты по устройству, наружу не ездят — заменяем как есть */
+      await clearStore('reports');
+      if(data.reports) for(const r of data.reports) await put('reports', Object.assign({}, r));
 
-      /* adspend лежит по ключу-дате, так что слияние здесь безопасно:
-         запись за день просто перезапишется значением из файла. */
-      if(data.adspend) for(const a of data.adspend) await put('adspend', a);
+      const fileDates = new Set((data.adspend || []).map(a=> a.dateKey));
+      for(const a of await getAll('adspend')){
+        if(!a.deletedAt && !fileDates.has(a.dateKey)){ a.deletedAt = now; await put('adspend', a); }
+      }
+      if(data.adspend) for(const a of data.adspend) await put('adspend', stripLocalFlags(Object.assign({}, a)));
 
       /* В бэкапе остаток лежит полем товара, а у нас он складывается из
          операций. Записи из файла помечены справочными, поэтому сумма по
@@ -6236,7 +6231,7 @@ function importBackup(e){
       syncInvActionUI();
       await renderStock(); await renderHistory(); await renderStats(); await renderReports(); await renderInvList();
       await updateProductCountPill();
-      toast(replace ? 'Данные заменены из файла' : 'Данные добавлены к текущим');
+      toast('Данные заменены из файла. Нажмите «Обновить», чтобы разослать на другие телефоны');
     }catch(err){ toast('Ошибка импорта: файл повреждён или имеет неверный формат'); }
   };
   reader.readAsText(file);
