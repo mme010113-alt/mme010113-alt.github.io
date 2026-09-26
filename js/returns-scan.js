@@ -24,6 +24,30 @@ async function getDamagedReturns(){
     .filter(h=> h.type==='Корректировка' && h.snap && h.snap.returnClose && h.snap.returnAction==='damaged')
     .sort((a,b)=> b.timestamp - a.timestamp);
 }
+/* Сколько штук каждого товара — возвраты (ещё не отправлены снова) и
+   повреждённые. Обе группы сидят в остатке, но «нормальными» не являются:
+   на «Складе» их показываем отдельно. */
+function returnsBySku(){ return cachedByVersion('returnsBySku', computeReturnsBySku); }
+async function computeReturnsBySku(){
+  const hist = await getAllLive('history');
+  const seen = new Set(), live = [];
+  hist.forEach(h=>{ const k = h.uid || ('#'+h.id); if(!seen.has(k)){ seen.add(k); live.push(h); } });
+  const closedRefs = new Set(live.filter(h=> h.snap && h.snap.returnClose && h.snap.returnRef).map(h=> h.snap.returnRef));
+  const out = {};
+  const slot = sku=> out[sku] = out[sku] || {ret:0, dmg:0};
+  for(const h of live){
+    if(h.type !== 'Корректировка' || !h.snap) continue;
+    if(h.snap.isReturn && !h.snap.returnClose && !closedRefs.has(h.uid)) slot(h.sku).ret += Math.abs(Number(h.delta)||0);
+    else if(h.snap.returnClose && h.snap.returnAction === 'damaged') slot(h.sku).dmg += Math.abs(Number(h.qty)||0);
+  }
+  return out;
+}
+/* нормальные штуки = остаток минус возвраты и повреждённые */
+function normalStock(p, rb){
+  const r = rb && rb[p.sku];
+  return (Number(p.totalStock)||0) - (r ? r.ret + r.dmg : 0);
+}
+
 function switchReturnsSubTab(tab){
   const isDamaged = tab==='damaged';
   const openBtn = document.getElementById('retSubBtnOpen');
@@ -145,9 +169,24 @@ function openReturnPick(){
   document.getElementById('returnPickSearch').value = '';
   renderReturnPickList();
   document.getElementById('returnPickModalBg').classList.add('show');
+  fitReturnPickList();
 }
 function closeReturnPick(){
   document.getElementById('returnPickModalBg').classList.remove('show');
+}
+/* Список занимает ровно место между поиском и клавиатурой: visualViewport —
+   это видимая часть экрана без клавиатуры (на iPhone окно под неё не сжимается). */
+function fitReturnPickList(){
+  const bg = document.getElementById('returnPickModalBg'), list = document.getElementById('returnPickList');
+  if(!bg || !list || !bg.classList.contains('show')) return;
+  const vv = window.visualViewport;
+  const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+  const top = list.getBoundingClientRect().top;
+  list.style.maxHeight = Math.max(120, Math.floor(visibleBottom - top - 16)) + 'px';
+}
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', fitReturnPickList);
+  window.visualViewport.addEventListener('scroll', fitReturnPickList);
 }
 async function renderReturnPickList(){
   const q = (document.getElementById('returnPickSearch').value||'').toLowerCase();
@@ -156,13 +195,14 @@ async function renderReturnPickList(){
   const filtered = all.filter(p=> !q || p.name.toLowerCase().includes(q) || String(p.sku).toLowerCase().includes(q));
   const list = document.getElementById('returnPickList');
   if(filtered.length===0){ list.innerHTML = emptyLine('i-search','Ничего не найдено'); return; }
-  list.innerHTML = filtered.map(p=>`
+  const rb = await returnsBySku();
+  list.innerHTML = filtered.map(p=>{ const r = rb[p.sku]; return `
     <div class="row-item" style="cursor:pointer;" onclick="selectReturnProduct('${escapeAttr(p.sku)}')">
       <div class="rmain">
         <div class="rname">${escapeHtml(p.name)}</div>
-        <div class="rmeta">${escapeHtml(p.sku)} · на складе: ${p.totalStock} шт</div>
+        <div class="rmeta">${escapeHtml(p.sku)} · на складе: ${normalStock(p, rb)} шт${r && r.ret ? ` <span class="q-ret-inline">+ ${r.ret} возвр.</span>` : ''}</div>
       </div>
-    </div>`).join('');
+    </div>`; }).join('');
 }
 
 /* Тап по товару = сразу +1 шт в «Возвраты», без отдельного шага с
