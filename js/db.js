@@ -322,6 +322,8 @@ const SYNCED_STORES = ['products','history','adspend','orders','payouts'];
    правок ушла одним обменом), а не ждёт двухминутного таймера. На время
    массовых операций (импорт) отправка выключена. */
 let bulkWrite = 0, autoSyncTimer = null;
+function bulkBegin(){ bulkWrite++; }
+function bulkEnd(){ bulkWrite = Math.max(0, bulkWrite - 1); }
 function scheduleAutoSync(){
   if(bulkWrite > 0 || !window.Sync || !Sync.isConfigured()) return;
   clearTimeout(autoSyncTimer);
