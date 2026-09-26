@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=75">
+<link rel="stylesheet" href="css/app.css?v=76">
 </head>
 <body>
 
@@ -176,6 +176,14 @@
           <span class="name" id="lastName"></span>
           <span class="stock num" id="lastStock"></span>
         </div>
+      </div>
+
+      <div class="card" id="reorderCard" hidden>
+        <div class="card-head">
+          <span class="t-eyebrow">Пора заказать · <span id="reorderCount">0</span></span>
+          <button class="btn ghost sm" style="width:auto;" onclick="openForecast()">Прогноз</button>
+        </div>
+        <div id="reorderList"></div>
       </div>
     </section>
 
@@ -516,6 +524,43 @@
         <button class="active" id="finSubBtnPtp" onclick="switchFinSubTab('ptp')">ПТП</button>
         <button id="finSubBtnAbc" onclick="switchFinSubTab('abc')">ABC</button>
         <button id="finSubBtnRnr" onclick="switchFinSubTab('rnr')">РНР</button>
+        <button id="finSubBtnSales" onclick="switchFinSubTab('sales')">Продажи</button>
+        <button id="finSubBtnFc" onclick="switchFinSubTab('fc')">Прогноз</button>
+      </div>
+
+      <div id="finSubSales" hidden>
+        <div class="card">
+          <div class="card-head"><span class="t-eyebrow">Продажи</span></div>
+          <div class="ch-controls">
+            <div class="period-seg ch-seg" id="salesModeSeg">
+              <button data-v="day" class="active" onclick="setSalesMode('day')">Дни</button>
+              <button data-v="week" onclick="setSalesMode('week')">Недели</button>
+            </div>
+            <div class="period-seg ch-seg" id="salesMetricSeg">
+              <button data-v="qty" class="active" onclick="setSalesMetric('qty')">Штуки</button>
+              <button data-v="revenue" onclick="setSalesMetric('revenue')">Рубли</button>
+            </div>
+          </div>
+          <div id="salesHeadline"></div>
+          <div class="ch-wrap" id="salesChart"></div>
+          <details class="ch-table"><summary>Показать цифрами</summary><div id="salesTable"></div></details>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="t-eyebrow">Что растёт, что падает</span></div>
+          <div class="t-caption" style="margin:-4px 0 var(--sp-2);color:var(--text-tertiary);">Продажи в штуках: последние 14 дней против 14 дней до них.</div>
+          <div id="salesTrends"></div>
+        </div>
+      </div>
+
+      <div class="card" id="finSubFc" hidden>
+        <div class="card-head"><span class="t-eyebrow">На сколько дней хватит</span></div>
+        <div class="filter-row" style="align-items:center;">
+          <label for="reorderLeadInput" class="t-small" style="flex:1;">Заказ идёт, дней</label>
+          <input type="number" id="reorderLeadInput" inputmode="numeric" min="1" max="180" style="max-width:90px;">
+          <button class="btn primary sm" style="width:auto;" onclick="saveReorderLead()"><svg class="icon"><use href="#i-check"/></svg>OK</button>
+        </div>
+        <div class="t-caption" style="margin:8px 0 var(--sp-2);color:var(--text-tertiary);">Скорость — средние продажи за последние 30 дней. «Пора заказать» — если товара хватит меньше, чем идёт заказ. Сколько заказать — чтобы хватило на время доставки и ещё на 30 дней.</div>
+        <div id="forecastList"></div>
       </div>
 
       <div class="card" id="finSubPtp">
@@ -859,18 +904,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=75"></script>
-<script src="js/db.js?v=75"></script>
-<script src="js/sync-ui.js?v=75"></script>
-<script src="js/input.js?v=75"></script>
-<script src="js/returns-scan.js?v=75"></script>
-<script src="js/sounds.js?v=75"></script>
-<script src="js/stock-history.js?v=75"></script>
-<script src="js/finance.js?v=75"></script>
-<script src="js/balance.js?v=75"></script>
-<script src="js/settings-roles.js?v=75"></script>
-<script src="js/backup-labels.js?v=75"></script>
+<script src="sync-config.js?v=76"></script>
+<script src="js/db.js?v=76"></script>
+<script src="js/sync-ui.js?v=76"></script>
+<script src="js/input.js?v=76"></script>
+<script src="js/returns-scan.js?v=76"></script>
+<script src="js/sounds.js?v=76"></script>
+<script src="js/stock-history.js?v=76"></script>
+<script src="js/finance.js?v=76"></script>
+<script src="js/balance.js?v=76"></script>
+<script src="js/analytics.js?v=76"></script>
+<script src="js/settings-roles.js?v=76"></script>
+<script src="js/backup-labels.js?v=76"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=75"></script>
+<script src="sync.js?v=76"></script>
 </body>
 </html>
