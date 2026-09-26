@@ -1527,25 +1527,137 @@ function historyByUid(uid){
    Записи, помеченные legacy, в расчёт не идут: они относятся ко времени
    до перехода на новую модель, а их итог уже учтён операцией
    «Начальный остаток». */
-async function recalcStock(sku){
-  const p = await get('products', sku);
-  if(!p) return null;
+/* ---- Остаток по серверу ----
+   Эталон — сумма операций, посчитанная сервером (представление
+   product_stock). Телефон показывает: серверное число + то, что он
+   отправил после последнего замера (ledger) + свои ещё не отправленные
+   операции. Локальная история нужна только для «Истории» и работы без
+   связи — её сбои (недокачка, дубли) на число больше не влияют. */
+let serverStockState = null;   // {key:'serverStock', value:{sku:n}|null, ledger:{sku:n}, at}
+async function loadServerStock(){
+  if(serverStockState) return serverStockState;
+  const r = await get('settings', 'serverStock');
+  serverStockState = r || {key:'serverStock', value:null, ledger:{}, at:0};
+  if(!serverStockState.ledger) serverStockState.ledger = {};
+  return serverStockState;
+}
+function saveServerStockState(){ return putRaw('settings', serverStockState); }
+function opEffect(h){ return (!h.legacy && !h.deletedAt) ? historyDelta(h) : 0; }
+
+/* Отправка прошла: сервер теперь знает эту запись, но свежего замера ещё
+   нет — учитываем разницу в ledger до следующего замера. */
+async function serverStockNotePushed(row, prevEff, prevSku){
+  const st = await loadServerStock();
+  if(!st.value) return;
+  const eff = opEffect(row);
+  if(prevSku !== undefined && prevEff) st.ledger[prevSku] = (st.ledger[prevSku]||0) - prevEff;
+  if(eff) st.ledger[row.sku] = (st.ledger[row.sku]||0) + eff;
+  await saveServerStockState();
+}
+async function serverStockReset(){
+  serverStockState = {key:'serverStock', value:null, ledger:{}, at:0};
+  await saveServerStockState();
+}
+
+/* Ещё не отправленные операции: вклад каждой — её нынешний эффект минус
+   то, что по ней уже знает сервер (srvEff/srvSku ставит синхронизация). */
+async function pendingStockDelta(sku){
+  const dirty = await getDirty('history');
+  const byUid = new Map();
+  dirty.forEach(h=>{ const k = h.uid || ('#'+h.id); const prev = byUid.get(k); if(!prev || (Number(h.updatedAt)||0) > (Number(prev.updatedAt)||0)) byUid.set(k, h); });
+  let d = 0;
+  byUid.forEach(h=>{
+    if(String(h.sku) === String(sku)) d += opEffect(h);
+    const srvSku = h.srvSku !== undefined ? h.srvSku : h.sku;
+    if(String(srvSku) === String(sku)) d -= (Number(h.srvEff)||0);
+  });
+  return d;
+}
+
+/* Сумма по локальной истории — как считалось раньше. Нужна для работы
+   до первого замера с сервера и для самопроверки. */
+async function localStockSum(sku){
   const ops = await historyBySku(sku);
-  /* Индекс byUid не уникальный (unique:false) — сама IndexedDB не мешает
-     двум записям с одинаковым uid оказаться в базе (например, если один
-     и тот же серверный ряд прилетел синхронизацией дважды). Раньше сумма
-     считалась по всем рядам подряд — задвоенная запись задваивала и
-     остаток. Здесь по каждому uid оставляем только одну (свежайшую по
-     updatedAt) запись, прежде чем суммировать — остаток верен, даже если
-     дубли в базе всё-таки завелись. */
   const byUid = new Map();
   ops.forEach(h=>{
-    const key = h.uid || ('#'+h.id);   // у самодельных записей без uid дублей не бывает
+    const key = h.uid || ('#'+h.id);
     const prev = byUid.get(key);
     if(!prev || (Number(h.updatedAt)||0) > (Number(prev.updatedAt)||0)) byUid.set(key, h);
   });
   let stock = 0;
-  byUid.forEach(h=>{ if(!h.legacy && !h.deletedAt) stock += historyDelta(h); });
+  byUid.forEach(h=>{ stock += opEffect(h); });
+  return stock;
+}
+
+async function expectedStock(sku){
+  const st = await loadServerStock();
+  if(!st.value) return localStockSum(sku);
+  return (Number(st.value[sku])||0) + (Number(st.ledger[sku])||0) + await pendingStockDelta(sku);
+}
+
+/* Новый замер с сервера. Пересчитываем все товары; где локальная история
+   даёт другое число — это сбой на телефоне: число берём серверное,
+   сообщаем «исправлено» и в фоне перекачиваем историю. */
+let lastHealAt = 0;
+const notifiedMismatch = new Set();
+async function applyServerStock(map){
+  const st = await loadServerStock();
+  st.value = map; st.ledger = {}; st.at = Date.now();
+  await saveServerStockState();
+  const fixes = [];
+  window.lastStockChangeCount = 0;
+  for(const p of await getAllLive('products')){
+    const shown = Number(p.totalStock)||0;
+    const local = await localStockSum(p.sku);
+    const now = await recalcStock(p.sku);
+    if(now !== shown) window.lastStockChangeCount++;
+    if(local !== now){
+      const sig = p.sku + ':' + local + ':' + now;
+      if(!notifiedMismatch.has(sig)){ notifiedMismatch.add(sig); fixes.push({name:p.name, from: shown !== now ? shown : local, to: now}); }
+    }
+  }
+  if(fixes.length){
+    const text = fixes.slice(0,3).map(f=> f.name + ' ' + f.from + ' → ' + f.to).join(', ') + (fixes.length > 3 ? (' и ещё ' + (fixes.length-3)) : '');
+    toast('Исправлено по серверу: ' + text);
+    if(Date.now() - lastHealAt > 6*60*60*1000){
+      lastHealAt = Date.now();
+      setTimeout(healLocalHistory, 500);
+    }
+  }
+  return fixes;
+}
+/* Тихое лечение: перекачать историю целиком и убрать дубли, чтобы и
+   список «Истории» совпал с сервером. */
+async function healLocalHistory(){
+  if(!window.Sync || !Sync.ready()) return;
+  await put('settings', {key:'syncCursor', value: 0});
+  await Sync.syncNow('самопроверка');
+  await dedupeLocalHistory();
+  /* «Отправленные» записи, которых на сервере нет, — сбойные дубли только
+     этого телефона: убираем их, чтобы «История» совпала с сервером. */
+  const live = await Sync.serverLiveUids();
+  if(live && live.size){
+    for(const h of await getAllLive('history')){
+      if(!h.dirty && h.uid && !live.has(h.uid)) await del('history', h.id);
+    }
+  }
+  await renderHistory();
+}
+async function dropServerStock(){
+  const st = await loadServerStock();
+  window.lastStockChangeCount = 0;
+  if(!st.value) return;
+  await serverStockReset();
+  for(const p of await getAllLive('products')){
+    const before = Number(p.totalStock)||0;
+    if((await recalcStock(p.sku)) !== before) window.lastStockChangeCount++;
+  }
+}
+
+async function recalcStock(sku){
+  const p = await get('products', sku);
+  if(!p) return null;
+  const stock = await expectedStock(sku);
   if(p.totalStock !== stock){
     /* Остаток — производный кэш, на сервер он не ездит. Раньше запись шла
        обычным put: карточка помечалась «изменённой», уезжала на сервер и
@@ -6232,6 +6344,7 @@ function importBackup(e){
       const fileHistory = (data.history || []).map(h=>{
         const copy = stripLocalFlags(Object.assign({}, h));
         delete copy.id;                  // локальный id не переносим — ищем строку по uid
+        delete copy.srvEff; delete copy.srvSku;   // что знает сервер — решает этот телефон, не файл
         normalizeHistoryRow(copy);
         return copy;
       });
@@ -6247,7 +6360,10 @@ function importBackup(e){
       }
       for(const copy of fileHistory){
         const existing = localByUid.get(copy.uid);
-        if(existing) copy.id = existing.id;
+        if(existing){
+          copy.id = existing.id;
+          if(existing.srvEff !== undefined){ copy.srvEff = existing.srvEff; copy.srvSku = existing.srvSku; }
+        }
         await put('history', copy);
       }
 
@@ -6268,8 +6384,8 @@ function importBackup(e){
       if(data.products){
         for(const p of data.products){
           const wanted = Number(p.totalStock) || 0;
-          const current = await recalcStock(p.sku);
-          if(current === null) continue;
+          if(!(await get('products', p.sku))) continue;
+          const current = await localStockSum(p.sku);   // файл — эталон: считаем по его записям
           const diff = wanted - current;
           if(diff !== 0){
             const prod = await get('products', p.sku);
