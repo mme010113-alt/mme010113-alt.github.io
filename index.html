@@ -5886,6 +5886,8 @@ async function applyRoleUI(){
   if(sa) sa.hidden = emp;
   const ha = document.getElementById('historyActions');
   if(ha) ha.hidden = emp;
+  // у партнёра нет галочек — и счётчик «Выбрано: 0» ему ни к чему
+  ['invoiceSelCount','historySelCount'].forEach(id=>{ const el = document.getElementById(id); if(el) el.hidden = emp; });
   const ra = document.getElementById('returnsActions');
   if(ra) ra.hidden = emp;
   // на «Складе» у партнёра — только строка поиска (по SKU/названию),
