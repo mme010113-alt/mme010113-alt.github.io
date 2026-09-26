@@ -61,9 +61,24 @@ async function logHistory(type, barcode, p, qty, opts){
   return uid;
 }
 
+/* Порядок на «Складе» — у каждого телефона свой, запоминается. */
+function stockSort(){
+  try{ const v = localStorage.getItem('sklad-stock-sort'); return ['name','asc','desc'].includes(v) ? v : 'name'; }catch(e){ return 'name'; }
+}
+function setStockSort(v){
+  try{ localStorage.setItem('sklad-stock-sort', v); }catch(e){}
+  renderStock();
+}
+
 async function renderStock(){
   const all = await getAllLive('products');
-  all.sort((a,b)=> a.name.localeCompare(b.name,'ru'));
+  const sort = stockSort();
+  document.querySelectorAll('#stockSortSeg button').forEach(b=> b.classList.toggle('active', b.dataset.v === sort));
+  const byName = (a,b)=> a.name.localeCompare(b.name,'ru');
+  const qty = p=> Number(p.totalStock)||0;
+  all.sort(sort === 'asc'  ? (a,b)=> qty(a) - qty(b) || byName(a,b)
+         : sort === 'desc' ? (a,b)=> qty(b) - qty(a) || byName(a,b)
+         : byName);
   const q = (document.getElementById('stockSearch').value||'').toLowerCase();
 
   const supplierSel = document.getElementById('supplierFilter');
@@ -97,7 +112,7 @@ async function renderStock(){
   list.innerHTML = filtered.map(p=>{
     const f = fc[p.sku];
     const fcHint = f && (f.status === 'order' || f.status === 'out')
-      ? `<div class="rmeta fc-hint"><svg class="icon"><use href="#i-alert"/></svg>${f.status === 'out' ? 'Закончился — пора заказать' : ('Хватит на ~' + Math.floor(f.daysLeft) + ' ' + pluralDney(Math.floor(f.daysLeft)) + ' — пора заказать')}</div>`
+      ? `<div class="rmeta fc-hint"><svg class="icon"><use href="#i-alert"/></svg>${f.status === 'out' ? 'Закончился · заказать' : ('~' + Math.floor(f.daysLeft) + ' ' + pluralDney(Math.floor(f.daysLeft)) + ' · заказать')}</div>`
       : '';
     let cls='';
     if(p.totalStock<=0) cls='zero'; else if(p.totalStock<=settings.lowStock) cls='low';
