@@ -985,9 +985,14 @@ body.labels-open{overflow:hidden;}
         <div class="card-head"><span class="t-eyebrow">Резервная копия</span></div>
         <div class="btn-row">
           <button class="btn ghost" onclick="exportBackup()"><svg class="icon"><use href="#i-download"/></svg>Экспорт</button>
-          <button class="btn ghost" onclick="document.getElementById('importFile').click()"><svg class="icon"><use href="#i-upload"/></svg>Импорт</button>
+          <button class="btn ghost" id="importBtn" onclick="requestImport()"><svg class="icon"><use href="#i-upload"/></svg>Импорт</button>
         </div>
         <input type="file" id="importFile" accept=".json" style="display:none" onchange="importBackup(event)">
+        <label style="display:flex;align-items:center;gap:10px;margin-top:var(--sp-3);cursor:pointer;">
+          <input type="checkbox" id="masterDeviceChk" style="width:20px;height:20px;flex:none;" onchange="setMasterDevice(this.checked)">
+          <span style="font-weight:600;">Главное устройство</span>
+        </label>
+        <div class="t-caption" style="margin:6px 0 0;color:var(--text-tertiary);">Импорт файла работает только на главном устройстве: загруженные данные заменят всё на сервере и разойдутся по остальным телефонам. Отметьте галочку только на одном телефоне. Обычная работа (приход, расход, продажи) синхронизируется со всех устройств как раньше.</div>
         <div class="alert" id="storageStatus"></div>
       </div>
       <div class="card">
@@ -5967,7 +5972,32 @@ async function removeMemberUI(memberId){
   toast('Партнёр убран');
 }
 
+/* Отметка «главное устройство» — только у этого телефона (localStorage),
+   на сервер не ездит: иначе после синхронизации главными стали бы все. */
+function isMasterDevice(){
+  try{ return localStorage.getItem('sklad-master-device') === '1'; }catch(e){ return false; }
+}
+function setMasterDevice(on){
+  try{ localStorage.setItem('sklad-master-device', on ? '1' : '0'); }catch(e){}
+  applyMasterUI();
+  toast(on ? 'Это главное устройство: импорт разрешён' : 'Главное устройство снято');
+}
+function applyMasterUI(){
+  const chk = document.getElementById('masterDeviceChk');
+  if(chk) chk.checked = isMasterDevice();
+  const btn = document.getElementById('importBtn');
+  if(btn) btn.style.opacity = isMasterDevice() ? '' : '0.5';
+}
+function requestImport(){
+  if(!isMasterDevice()){
+    toast('Импорт только на главном устройстве. Отметьте галочку «Главное устройство» ниже');
+    return;
+  }
+  document.getElementById('importFile').click();
+}
+
 function loadSettingsForm(){
+  applyMasterUI();
   document.getElementById('setCompany').value = settings.company;
   document.getElementById('setLowStock').value = settings.lowStock;
   document.getElementById('setSound').value = settings.sound?'1':'0';
@@ -6127,6 +6157,7 @@ async function exportBackup(){
 function importBackup(e){
   const file = e.target.files[0];
   if(!file) return;
+  if(!isMasterDevice()){ e.target.value=''; requestImport(); return; }
   const reader = new FileReader();
   reader.onload = async (ev)=>{
     try{
