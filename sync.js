@@ -410,17 +410,35 @@
       }
     }
 
+    /* Две локальные строки с одним ключом в одной пачке дают серверную ошибку
+       «ON CONFLICT DO UPDATE command cannot affect row a second time» и встают
+       обмен намертво. Оставляем на ключ одну — самую свежую; лишние помечаем
+       отправленными, они всё равно дубли. */
+    const keyCols = spec.conflict.split(',');
+    const pairs = dirty.map(r=> ({local:r, row:spec.toRow(r, uid)}));
+    const winners = new Map();
+    for(const p of pairs){
+      const k = keyCols.map(c=> String(p.row[c])).join('|');
+      const cur = winners.get(k);
+      if(!cur || (p.local.updatedAt||0) >= (cur.local.updatedAt||0)) winners.set(k, p);
+    }
+    const unique = pairs.filter(p=> winners.get(keyCols.map(c=> String(p.row[c])).join('|')) === p);
+    const dupes = pairs.filter(p=> !unique.includes(p));
+
     // порциями: одним запросом на тысячи строк упрёмся в лимит тела
     const CHUNK = 200;
-    for(let i=0;i<dirty.length;i+=CHUNK){
-      const slice = dirty.slice(i, i+CHUNK);
-      const rows = slice.map(r=> spec.toRow(r, uid));
-      const {error} = await client.from(spec.table).upsert(rows, {onConflict: spec.conflict});
+    for(let i=0;i<unique.length;i+=CHUNK){
+      const slice = unique.slice(i, i+CHUNK);
+      const {error} = await client.from(spec.table).upsert(slice.map(p=>p.row), {onConflict: spec.conflict});
       if(error) throw new Error(spec.table + ': ' + error.message);
-      for(const row of slice){
-        row.dirty = 0;
-        await window.put(storeName, row, {fromSync:true});
+      for(const p of slice){
+        p.local.dirty = 0;
+        await window.put(storeName, p.local, {fromSync:true});
       }
+    }
+    for(const p of dupes){
+      p.local.dirty = 0;
+      await window.put(storeName, p.local, {fromSync:true});
     }
     return dirty.length;
   }
