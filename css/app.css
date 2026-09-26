@@ -573,5 +573,8 @@ body.labels-open{overflow:hidden;}
 .fc-row .rside{flex-direction:column;align-items:flex-end;gap:4px;}
 .fc-row.idle .rname{color:var(--text-secondary);}
 .row-item .rmeta.fc-order{color:var(--text-secondary);font-weight:600;}
-.row-item .rmeta.fc-hint{display:flex;align-items:center;gap:4px;color:var(--text-secondary);}
+.row-item .rmeta.fc-hint{display:flex;align-items:center;gap:4px;color:var(--text-secondary);white-space:normal;}
 .row-item .rmeta.fc-hint .icon{width:12px;height:12px;color:var(--warning);flex-shrink:0;}
+
+/* сортировка на «Складе» — под строкой поиска */
+.stock-sort{margin:10px 0 2px;}
