@@ -1,6 +1,6 @@
 ﻿/* Версию бампаем при КАЖДОЙ выкладке — иначе у установленных приложений
    останется старый кеш, и правки увидят не сразу. */
-const CACHE_NAME = 'sklad-v74';
+const CACHE_NAME = 'sklad-v75';
 
 /* Всё, что нужно приложению для полностью автономной работы: оболочка,
    иконки, сканер штрихкодов, генератор QR и шрифты. Раньше сканер, QR и
@@ -21,8 +21,22 @@ const ASSETS = [
   './vendor/zxing.min.js',
   './vendor/qrcode.min.js',
   './vendor/supabase.min.js',
-  './sync-config.js',
-  './sync.js',
+  /* Свои скрипты и стили — с номером версии в адресе (его поднимает
+     выкладка вместе с CACHE_NAME): новая страница никогда не получит из
+     кеша старый кусок кода, а старая — новый. */
+  './css/app.css?v=75',
+  './sync-config.js?v=75',
+  './js/db.js?v=75',
+  './js/sync-ui.js?v=75',
+  './js/input.js?v=75',
+  './js/returns-scan.js?v=75',
+  './js/sounds.js?v=75',
+  './js/stock-history.js?v=75',
+  './js/finance.js?v=75',
+  './js/balance.js?v=75',
+  './js/settings-roles.js?v=75',
+  './js/backup-labels.js?v=75',
+  './sync.js?v=75',
   './fonts/fonts.css',
   './fonts/Inter-400-cyrillic.woff2',
   './fonts/Inter-400-latin.woff2',
