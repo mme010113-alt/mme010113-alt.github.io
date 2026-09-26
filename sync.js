@@ -427,10 +427,31 @@
 
     // порциями: одним запросом на тысячи строк упрёмся в лимит тела
     const CHUNK = 200;
+    const keyCol = keyCols[1];
     for(let i=0;i<unique.length;i+=CHUNK){
       const slice = unique.slice(i, i+CHUNK);
-      const {error} = await client.from(spec.table).upsert(slice.map(p=>p.row), {onConflict: spec.conflict});
-      if(error) throw new Error(spec.table + ': ' + error.message);
+
+      /* Сервер принимает запись «вслепую», поэтому устаревшая правка (или
+         живая карточка товара) затирала бы более свежее — например, удаление,
+         сделанное на другом телефоне. Если на сервере запись новее нашей,
+         уступаем: её привезёт приём. */
+      const remoteTime = new Map();
+      for(let j=0;j<slice.length;j+=50){
+        const keys = slice.slice(j, j+50).map(p=> String(p.row[keyCol]));
+        const chk = await client.from(spec.table).select(keyCol + ',updated_at')
+          .eq('user_id', uid).in(keyCol, keys);
+        if(chk.error) throw new Error(spec.table + ': ' + chk.error.message);
+        (chk.data || []).forEach(r=> remoteTime.set(String(r[keyCol]), num(r.updated_at)));
+      }
+      const send = slice.filter(p=>{
+        const t = remoteTime.get(String(p.row[keyCol]));
+        return !(t !== undefined && t > num(p.row.updated_at));
+      });
+
+      if(send.length){
+        const {error} = await client.from(spec.table).upsert(send.map(p=>p.row), {onConflict: spec.conflict});
+        if(error) throw new Error(spec.table + ': ' + error.message);
+      }
       for(const p of slice){
         p.local.dirty = 0;
         await window.put(storeName, p.local, {fromSync:true});
@@ -606,10 +627,10 @@
           const liveKeys = new Set(local.filter(r=> !r.deletedAt).map(r=> String(LOCAL_KEY[s](r))));
           const extra = (await listServerLiveKeys(spec.table, keyCol, wsOwner)).filter(k=> !liveKeys.has(k));
           const t = Date.now();
-          for(let i=0; i<extra.length; i+=100){
+          for(let i=0; i<extra.length; i+=50){
             const {error} = await client.from(spec.table)
               .update({deleted_at: t, updated_at: t})
-              .eq('user_id', wsOwner).in(keyCol, extra.slice(i, i+100));
+              .eq('user_id', wsOwner).in(keyCol, extra.slice(i, i+50));
             if(error) throw new Error(spec.table + ': ' + error.message);
           }
           removed += extra.length;
