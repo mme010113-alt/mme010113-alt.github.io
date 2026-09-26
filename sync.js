@@ -452,9 +452,18 @@
         const {error} = await client.from(spec.table).upsert(send.map(p=>p.row), {onConflict: spec.conflict});
         if(error) throw new Error(spec.table + ': ' + error.message);
       }
+      const sentSet = new Set(send);
       for(const p of slice){
         p.local.dirty = 0;
-        await window.put(storeName, p.local, {fromSync:true});
+        if(storeName === 'history' && sentSet.has(p)){
+          const prevEff = p.local.srvEff, prevSku = p.local.srvSku;
+          p.local.srvEff = window.opEffect(p.local);
+          p.local.srvSku = p.local.sku;
+          await window.put(storeName, p.local, {fromSync:true});
+          await window.serverStockNotePushed(p.local, prevEff, prevSku);
+        } else {
+          await window.put(storeName, p.local, {fromSync:true});
+        }
       }
     }
     for(const p of dupes){
@@ -499,6 +508,8 @@
       const key = spec.keyOf(row);
 
       if(storeName === 'history'){
+        incoming.srvEff = window.opEffect(incoming);   // что об этой записи знает сервер
+        incoming.srvSku = incoming.sku;
         /* историю ищем по uid: локальный ключ (автоинкремент) на разных
            устройствах свой и для поиска не годится */
         const local = await findByUid(row.uid);
@@ -551,6 +562,28 @@
     orders: r=> r.uid, payouts: r=> r.uid
   };
 
+  /* Замер остатков сервером (представление product_stock). Если его нет
+     (схему не обновили) — возвращаем null, и телефон считает по-старому. */
+  async function fetchServerStock(wsOwner){
+    const PAGE = 1000, map = {};
+    for(let from = 0; ; from += PAGE){
+      const {data, error} = await client.from('product_stock').select('sku,stock')
+        .eq('user_id', wsOwner).order('sku', {ascending:true}).range(from, from + PAGE - 1);
+      if(error) return null;
+      (data || []).forEach(r=> map[r.sku] = num(r.stock));
+      if(!data || data.length < PAGE) break;
+    }
+    return map;
+  }
+  async function refreshServerStock(wsOwner){
+    const map = await fetchServerStock(wsOwner);
+    if(map && typeof window.applyServerStock === 'function') await window.applyServerStock(map);
+    /* Замера нет, а чужие операции могли уже прийти — старый замер их не
+       знает. Возвращаемся к подсчёту по своей истории, пока замер не придёт. */
+    if(!map && typeof window.dropServerStock === 'function') await window.dropServerStock();
+    return !!map;
+  }
+
   async function readRemoteEpoch(wsOwner){
     const {data, error} = await client.from('app_settings').select('updated_at')
       .eq('user_id', wsOwner).eq('key', EPOCH_KEY).limit(1);
@@ -566,6 +599,7 @@
     const row = await window.get('settings', 'syncEpoch');
     if(remote <= num(row && row.value)) return false;
     for(const s of stores){ await window.clearStore(s); }
+    if(typeof window.serverStockReset === 'function') await window.serverStockReset();
     await window.put('settings', {key:'syncCursor', value: 0});
     await window.put('settings', {key:'syncEpoch', value: remote});
     return true;
@@ -583,6 +617,16 @@
       if(chunk.length < PAGE) break;
     }
     return keys;
+  }
+
+  /* uid всех живых операций на сервере — для самолечения: запись, которой
+     на сервере нет, а на телефоне она «отправлена», — сбойный дубль. */
+  async function serverLiveUids(){
+    const user = await currentUser();
+    if(!ready() || !user) return null;
+    const wsOwner = membership ? membership.owner_id : user.id;
+    try{ return new Set(await listServerLiveKeys('operations', 'uid', wsOwner)); }
+    catch(e){ return null; }
   }
 
   async function publishAsMaster(onProgress){
@@ -644,6 +688,7 @@
         }
       }
 
+      await refreshServerStock(wsOwner);
       const pending = (await window.getDirty('history')).length;
       emit('idle', {sent, received:0, pending, at: Date.now()});
       return {ok:true, sent, removed};
@@ -748,8 +793,11 @@
       newCursor = Math.min(newCursor, Date.now());
       await window.put('settings', {key:'syncCursor', value: newCursor});
 
-      // остаток пересчитывается только у затронутых товаров
-      for(const sku of skus){ await window.recalcStock(sku); }
+      /* Эталонный остаток — от сервера; без него (старая схема) считаем
+         по-старому, только у затронутых товаров. */
+      const measured = await refreshServerStock(wsOwner);
+      if(!measured){ for(const sku of skus){ await window.recalcStock(sku); } }
+      const stockChanged = window.lastStockChangeCount > 0;
       if(mirrored && typeof window.toast === 'function') window.toast('Данные обновлены с главного телефона');
 
       const pending = (await window.getDirty('history')).length
@@ -759,7 +807,7 @@
                     + (await window.getDirty('payouts')).length;
 
       emit('idle', {sent, received, pending, at: Date.now()});
-      if(received && typeof window.refreshAfterSync === 'function') await window.refreshAfterSync();
+      if((received || stockChanged) && typeof window.refreshAfterSync === 'function') await window.refreshAfterSync();
       return {ok:true, sent, received};
     }catch(e){
       emit('error', {message: e.message});
@@ -813,7 +861,7 @@
   setInterval(()=>{ if(ready() && navigator.onLine) syncNow('по расписанию'); }, 120000);
 
   window.Sync = {
-    init, start, signIn, signOut, changePassword, syncNow, currentUser, publishAsMaster,
+    init, start, signIn, signOut, changePassword, syncNow, currentUser, publishAsMaster, serverLiveUids,
     startRealtime, stopRealtime, onStatus, ready, lastLogin,
     isConfigured: ()=> Boolean(CFG.url && CFG.key),
     // роли и кабинет сотрудника
