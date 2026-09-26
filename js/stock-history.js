@@ -93,7 +93,12 @@ async function renderStock(){
     return;
   }
   const emp = isEmployee();
+  const fc = emp ? {} : await computeForecast();
   list.innerHTML = filtered.map(p=>{
+    const f = fc[p.sku];
+    const fcHint = f && (f.status === 'order' || f.status === 'out')
+      ? `<div class="rmeta fc-hint"><svg class="icon"><use href="#i-alert"/></svg>${f.status === 'out' ? 'Закончился — пора заказать' : ('Хватит на ~' + Math.floor(f.daysLeft) + ' ' + pluralDney(Math.floor(f.daysLeft)) + ' — пора заказать')}</div>`
+      : '';
     let cls='';
     if(p.totalStock<=0) cls='zero'; else if(p.totalStock<=settings.lowStock) cls='low';
     if(emp){
@@ -115,6 +120,7 @@ async function renderStock(){
       <div class="rmain">
         <div class="rname">${escapeHtml(p.name)}</div>
         <div class="rmeta">${escapeHtml(p.sku)} · ${p.barcode?escapeHtml(p.barcode):'без штрихкода'}${p.supplier?' · '+escapeHtml(p.supplier):''}</div>
+        ${fcHint}
       </div>
       <div class="rside">
         <span class="rval ${cls}">${p.totalStock} шт</span>
@@ -126,6 +132,7 @@ async function renderStock(){
   }).join('');
   await updateProductCountPill();
   updateInvoiceSelCount();
+  if(!emp) renderReorderCard(fc);
 }
 
 /* ---- выбор товаров галочками для накладной поставщику ---- */
