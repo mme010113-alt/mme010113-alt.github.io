@@ -77,8 +77,8 @@ async function renderReturns(){
   if(open.length===0){
     list.innerHTML = emptyState('i-inbox','Возвратов нет', emp ? 'Пока ничего не возвращали.' : 'Нажмите «+», чтобы добавить товар, который вернул покупатель.');
   } else {
-    /* Партнёру — только просмотр: без галочки «отправлено снова», без
-       молоточка и без удаления, эти действия делает владелец. */
+    /* Партнёру — без галочки «отправлено снова» и без удаления (это делает
+       владелец), но с молоточком: пометить повреждённым он может сам. */
     list.innerHTML = open.map(h=> emp ? `
       <div class="row-item">
         <div class="rmain">
@@ -87,6 +87,7 @@ async function renderReturns(){
         </div>
         <div class="rside">
           <span class="rval pos">+${Math.abs(h.delta)} шт</span>
+          <button class="icon-btn" onclick="markReturnDamaged(${h.id})" aria-label="Повреждён"><svg class="icon"><use href="#i-hammer"/></svg></button>
         </div>
       </div>` : `
       <div class="row-item">
@@ -109,6 +110,7 @@ async function renderReturns(){
       ? emptyState('i-hammer','Повреждённых нет', 'Молоточек на товаре в «Возвратах» переносит его сюда.')
       : damaged.map(h=> emp ? `
         <div class="row-item">
+          <input type="checkbox" class="inv-chk" aria-label="Заменили — вернуть в возвраты" onchange="restoreFromDamaged(${h.id}, this.checked)">
           <div class="rmain">
             <div class="rname">${escapeHtml(h.name)}</div>
             <div class="rmeta">${escapeHtml(h.sku)} · ${h.date} ${h.time}</div>
@@ -138,6 +140,13 @@ async function renderReturns(){
 async function markReturnDamaged(id){
   const h = await get('history', id);
   if(!h){ await renderReturns(); return; }
+  if(isEmployee()){
+    /* партнёр — через сервер: сам он в данные склада не пишет */
+    const r = await Sync.partnerMarkDamaged(h.uid);
+    toast(r.ok ? (h.name + ' — перенесено в «Повреждённые»') : ('Не вышло: ' + r.error));
+    await renderReturns();
+    return;
+  }
   const qty = Math.abs(h.delta);
   const p = await get('products', h.sku);
   await logHistory('Корректировка', h.barcode, p || {sku:h.sku, name:h.name, totalStock:0}, qty, {
@@ -158,6 +167,12 @@ async function restoreFromDamaged(id, checked){
   if(!checked) return;
   const h = await get('history', id);
   if(!h){ await renderReturns(); return; }
+  if(isEmployee()){
+    const r = await Sync.partnerRestoreDamaged(h.uid);
+    toast(r.ok ? (h.name + ' — возвращено в «Возвраты»') : ('Не вышло: ' + r.error));
+    await renderReturns();
+    return;
+  }
   await softDelete('history', id);
   if(window.Sync && Sync.syncNow) Sync.syncNow('повреждённый возвращён в возвраты');
   toast(h.name + ' — возвращено в «Возвраты», на складе без изменений');
