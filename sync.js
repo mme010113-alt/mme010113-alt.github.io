@@ -629,7 +629,10 @@
     catch(e){ return null; }
   }
 
-  async function publishAsMaster(onProgress){
+  /* prepare — что сделать с данными телефона под той же блокировкой, до
+     раздачи (откат копии): иначе плановый обмен посреди подмены вернул бы
+     в очищенную базу лишние строки с сервера. */
+  async function publishAsMaster(onProgress, prepare){
     const say = t=>{ try{ if(onProgress) onProgress(t); }catch(e){} };
     if(!ready()) return {ok:false, error:'нет настроек'};
     if(membership) return {ok:false, error:'раздавать данные может только владелец'};
@@ -643,6 +646,7 @@
     syncing = true;
     emit('syncing', {reason:'главное устройство'});
     try{
+      if(prepare) await prepare();
       const wsOwner = user.id;
       const stores = ['products','history','adspend','orders','payouts'];
       const optional = new Set(['orders','payouts']);
@@ -700,6 +704,58 @@
       currentRun = null;
       if(resolveRun) resolveRun();
     }
+  }
+
+  // ------------------------------------------------------------------
+  // резервные копии на сервере (таблица snapshots, функция take_snapshot)
+  // ------------------------------------------------------------------
+  const SNAP_TABLES = {products:'products', operations:'history', orders:'orders', payouts:'payouts', adspend:'adspend'};
+
+  async function takeSnapshot(kind){
+    if(!ready() || membership) return {ok:false, error:'только владелец'};
+    const {data, error} = await client.rpc('take_snapshot', {p_kind: kind || 'manual'});
+    return error ? {ok:false, error:error.message} : {ok:true, id:data};
+  }
+  async function listSnapshots(){
+    if(!ready() || membership) return [];
+    const user = await currentUser(); if(!user) return [];
+    const {data, error} = await client.from('snapshots').select('id,kind,taken_at,counts')
+      .eq('user_id', user.id).order('taken_at', {ascending:false}).limit(60);
+    if(error) throw new Error(error.message);
+    return data || [];
+  }
+
+  /* Откат: снимок становится данными этого телефона, а потом раздаётся на
+     все как с главного устройства. Перед этим — копия «до отката». */
+  async function restoreSnapshot(id, onProgress){
+    const say = t=>{ try{ if(onProgress) onProgress(t); }catch(e){} };
+    if(!ready() || membership) return {ok:false, error:'только владелец'};
+    if(!navigator.onLine) return {ok:false, error:'нет сети'};
+    say('Скачиваю копию…');
+    const {data, error} = await client.from('snapshots').select('data').eq('id', id).limit(1);
+    if(error) return {ok:false, error:error.message};
+    if(!data || !data.length) return {ok:false, error:'копия не найдена'};
+    const snap = data[0].data || {};
+
+    say('Сохраняю нынешнее состояние…');
+    const before = await takeSnapshot('before-restore');
+    if(!before.ok) return {ok:false, error:'не удалось сохранить копию «до отката»: ' + before.error};
+
+    const r = await publishAsMaster(say, async ()=>{
+      say('Раскладываю копию…');
+      window.bulkBegin();
+      try{
+        for(const [table, store] of Object.entries(SNAP_TABLES)){
+          await window.clearStore(store);
+          for(const row of (snap[table] || [])){
+            await window.put(store, MAP[store].toLocal(row));
+          }
+        }
+        await window.serverStockReset();
+      }finally{ window.bulkEnd(); }
+      say('Раздаю на все телефоны…');
+    });
+    return r.ok ? {ok:true, beforeId: before.id} : r;
   }
 
   // ------------------------------------------------------------------
@@ -852,6 +908,8 @@
     if(typeof window.applyRoleUI === 'function') window.applyRoleUI();
     startRealtime();
     await syncNow('запуск');
+    /* подстраховка ночной копии сервера: если сегодня её ещё нет — сделать */
+    if(!membership) takeSnapshot('daily').catch(()=>{});
     return true;
   }
 
@@ -862,6 +920,7 @@
 
   window.Sync = {
     init, start, signIn, signOut, changePassword, syncNow, currentUser, publishAsMaster, serverLiveUids,
+    takeSnapshot, listSnapshots, restoreSnapshot,
     startRealtime, stopRealtime, onStatus, ready, lastLogin,
     isConfigured: ()=> Boolean(CFG.url && CFG.key),
     // роли и кабинет сотрудника
