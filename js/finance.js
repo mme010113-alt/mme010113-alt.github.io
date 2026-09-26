@@ -597,8 +597,10 @@ async function deleteAdSpend(dateKey){
    ============================================================ */
 /* Три карточки во «Расходах» — ПТП / ABC / РНР — показаны по одной,
    переключаются как «Сегодня/Неделя/Месяц» у периода. */
+var finSubTab = 'ptp';
 function switchFinSubTab(tab){
-  const map = {ptp:'Ptp', abc:'Abc', rnr:'Rnr'};
+  finSubTab = tab;
+  const map = {ptp:'Ptp', abc:'Abc', rnr:'Rnr', sales:'Sales', fc:'Fc'};
   Object.keys(map).forEach(key=>{
     const isActive = key === tab;
     const btn = document.getElementById('finSubBtn'+map[key]);
@@ -606,6 +608,12 @@ function switchFinSubTab(tab){
     if(btn) btn.classList.toggle('active', isActive);
     if(panel) panel.hidden = !isActive;
   });
+  renderFinSubTab();
+}
+/* графики и прогноз строятся только когда их видно */
+function renderFinSubTab(){
+  if(finSubTab === 'sales') renderSalesCharts();
+  if(finSubTab === 'fc') renderForecast();
 }
 
 async function generateABC(){
