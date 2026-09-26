@@ -329,8 +329,24 @@ function scheduleAutoSync(){
   clearTimeout(autoSyncTimer);
   autoSyncTimer = setTimeout(()=>{ if(bulkWrite === 0 && Sync.ready()) Sync.syncNow('изменение'); }, 1500);
 }
+/* Номер версии данных: растёт при любой записи в товары или историю.
+   По нему кэшируются тяжёлые пересчёты (возвраты, прогноз), чтобы поиск
+   на «Складе» не пересчитывал всю историю на каждую букву. */
+var dataVersion = 0;
+function touchData(store){ if(store === 'history' || store === 'products') dataVersion++; }
+function cachedByVersion(slot, compute){
+  const c = cachedByVersion.store[slot];
+  if(c && c.v === dataVersion) return c.p;
+  const v = dataVersion, p = compute();
+  cachedByVersion.store[slot] = {v, p};
+  p.catch(()=>{ if(cachedByVersion.store[slot] && cachedByVersion.store[slot].p === p) delete cachedByVersion.store[slot]; });
+  return p;
+}
+cachedByVersion.store = {};
+
 function put(store,val,opts){
   opts = opts || {};
+  touchData(store);
   if(SYNCED_STORES.indexOf(store) !== -1){
     if(opts.fromSync){
       val.dirty = 0;
@@ -368,6 +384,7 @@ async function saveAppSettings(opts){
 /* Запись без пометок синхронизации — нужна ей самой, когда она кладёт
    в базу то, что только что оттуда получила. */
 function putRaw(store, val){
+  touchData(store);
   return new Promise((res,rej)=>{ const r = tx(store,'readwrite').put(val); r.onsuccess=()=>res(r.result); r.onerror=rej; });
 }
 
@@ -402,8 +419,8 @@ async function softDelete(store, key){
   await put(store, row);
   return true;
 }
-function del(store,key){ return new Promise((res,rej)=>{ const r = tx(store,'readwrite').delete(key); r.onsuccess=()=>res(); r.onerror=rej; }); }
-function clearStore(store){ return new Promise((res,rej)=>{ const r = tx(store,'readwrite').clear(); r.onsuccess=()=>res(); r.onerror=rej; }); }
+function del(store,key){ touchData(store); return new Promise((res,rej)=>{ const r = tx(store,'readwrite').delete(key); r.onsuccess=()=>res(); r.onerror=rej; }); }
+function clearStore(store){ touchData(store); return new Promise((res,rej)=>{ const r = tx(store,'readwrite').clear(); r.onsuccess=()=>res(); r.onerror=rej; }); }
 
 /* ============================================================
    ПОСТОЯННОЕ ХРАНИЛИЩЕ
