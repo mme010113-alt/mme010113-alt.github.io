@@ -70,12 +70,94 @@ function setStockSort(v){
   renderStock();
 }
 
+/* ---- окошко фильтра: сортировка + поставщик за одной кнопкой ---- */
+const STOCK_SORT_NAMES = {name:'А–Я', asc:'Меньше штук', desc:'Больше штук'};
+var stockSupplierList = [];
+function toggleStockFilter(e, force){
+  if(e) e.stopPropagation();
+  const pop = document.getElementById('stockFilterPop'), btn = document.getElementById('stockFilterBtn');
+  if(!pop) return;
+  const open = force !== undefined ? force : pop.hidden;
+  pop.hidden = !open;
+  if(btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function setStockSupplier(v){
+  document.getElementById('supplierFilter').value = v;
+  renderStock();
+}
+function resetStockFilter(){
+  try{ localStorage.setItem('sklad-stock-sort', 'name'); }catch(e){}
+  document.getElementById('supplierFilter').value = '';
+  toggleStockFilter(null, false);
+  renderStock();
+}
+function renderStockFilter(suppliers, sort, supplier){
+  const opt = (active, onclick, label)=>
+    `<button type="button" class="filter-opt ${active ? 'on' : ''}" onclick="${onclick}"><span>${label}</span>${active ? '<svg class="icon"><use href="#i-check"/></svg>' : ''}</button>`;
+  const so = document.getElementById('stockSortOpts');
+  if(so) so.innerHTML = Object.keys(STOCK_SORT_NAMES).map(k=> opt(k === sort, `setStockSort('${k}')`, STOCK_SORT_NAMES[k])).join('');
+  const sp = document.getElementById('stockSupplierOpts');
+  stockSupplierList = suppliers;
+  if(sp) sp.innerHTML = opt(!supplier, `setStockSupplier('')`, 'Все поставщики')
+    + suppliers.map((s, i)=> opt(s === supplier, `setStockSupplier(stockSupplierList[${i}])`, escapeHtml(s))).join('');
+  const parts = [];
+  if(sort !== 'name') parts.push(STOCK_SORT_NAMES[sort]);
+  if(supplier) parts.push(escapeHtml(supplier));
+  const dot = document.getElementById('stockFilterDot');
+  if(dot) dot.hidden = !parts.length;
+  const sum = document.getElementById('stockFilterSum');
+  if(sum){
+    sum.hidden = !parts.length;
+    sum.innerHTML = parts.length ? `<span>${parts.join(' · ')}</span><button type="button" onclick="resetStockFilter()" aria-label="Сбросить фильтр"><svg class="icon"><use href="#i-x"/></svg>Сбросить</button>` : '';
+  }
+}
+document.addEventListener('click', (e)=>{
+  const pop = document.getElementById('stockFilterPop');
+  if(pop && !pop.hidden && !e.target.closest('.filter-pop-wrap')) toggleStockFilter(null, false);
+});
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') toggleStockFilter(null, false); });
+
+/* «Стоп» — товары, которые сейчас не продаются (кончился сезон), но
+   удалять их не хочется: история и остатки остаются, вернуть — в одно
+   касание. Партнёрам «Стоп» не показывается. */
+var stockTab = 'active';
+function setStockTab(v){
+  if(v === stockTab) return;
+  stockTab = v;
+  invoiceSelection.clear();
+  renderStock();
+}
+async function moveSelectedToStop(toStop){
+  const skus = [...invoiceSelection];
+  if(!skus.length){ toast('Сначала отметьте товары галочками'); return; }
+  for(const sku of skus){
+    const p = await get('products', sku);
+    if(!p || p.deletedAt) continue;
+    p.stopped = !!toStop;
+    await put('products', p);
+  }
+  invoiceSelection.clear();
+  toast((toStop ? 'В «Стоп»: ' : 'Вернули в продажу: ') + skus.length + ' ' + pluralTovar(skus.length));
+  await renderStock();
+}
+
 async function renderStock(){
-  const all = await getAllLive('products');
+  const emp = isEmployee();
+  const everything = await getAllLive('products');
+  const tab = emp ? 'active' : stockTab;
+  const cntStop = everything.filter(p=> p.stopped).length;
+  const setCnt = (id, n)=>{ const el = document.getElementById(id); if(el) el.textContent = n ? n : ''; };
+  setCnt('stockCntActive', everything.length - cntStop); setCnt('stockCntStop', cntStop);
+  const seg = document.getElementById('stockTabSeg');
+  if(seg){
+    seg.hidden = emp;
+    seg.querySelectorAll('button').forEach(b=> b.classList.toggle('active', b.dataset.v === tab));
+  }
+  const all = everything.filter(p=> tab === 'stop' ? p.stopped : !p.stopped);
   const sort = stockSort();
-  document.querySelectorAll('#stockSortSeg button').forEach(b=> b.classList.toggle('active', b.dataset.v === sort));
   const byName = (a,b)=> a.name.localeCompare(b.name,'ru');
-  const qty = p=> Number(p.totalStock)||0;
+  const rb = await returnsBySku();
+  const qty = p=> normalStock(p, rb);
   all.sort(sort === 'asc'  ? (a,b)=> qty(a) - qty(b) || byName(a,b)
          : sort === 'desc' ? (a,b)=> qty(b) - qty(a) || byName(a,b)
          : byName);
@@ -87,6 +169,7 @@ async function renderStock(){
   supplierSel.innerHTML = '<option value="">Все поставщики</option>' + suppliers.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
   if(suppliers.includes(prevSupplierValue)) supplierSel.value = prevSupplierValue;
   const supplierFilterVal = supplierSel.value;
+  renderStockFilter(emp ? [] : suppliers, sort, supplierFilterVal);
 
   const allSkus = new Set(all.map(p=>p.sku));
   [...invoiceSelection].forEach(sku=>{ if(!allSkus.has(sku)) invoiceSelection.delete(sku); });
@@ -97,7 +180,9 @@ async function renderStock(){
   );
   const list = document.getElementById('stockList');
   if(all.length===0){
-    list.innerHTML = emptyState('i-box','Товаров пока нет','Добавьте первый товар кнопкой ниже или импортируйте список из Настроек.');
+    list.innerHTML = tab === 'stop'
+      ? emptyState('i-pause','В «Стопе» пусто','Отметьте товары галочками во вкладке «В продаже» и в меню ⋮ выберите «Добавить в стоп».')
+      : emptyState('i-box','Товаров пока нет','Добавьте первый товар кнопкой ниже или импортируйте список из Настроек.');
     await updateProductCountPill();
     updateInvoiceSelCount();
     return;
@@ -107,15 +192,19 @@ async function renderStock(){
     updateInvoiceSelCount();
     return;
   }
-  const emp = isEmployee();
   const fc = emp ? {} : await computeForecast();
   list.innerHTML = filtered.map(p=>{
     const f = fc[p.sku];
     const fcHint = f && (f.status === 'order' || f.status === 'out')
       ? `<div class="rmeta fc-hint"><svg class="icon"><use href="#i-alert"/></svg>${f.status === 'out' ? 'Закончился · заказать' : ('~' + Math.floor(f.daysLeft) + ' ' + pluralDney(Math.floor(f.daysLeft)) + ' · заказать')}</div>`
       : '';
+    /* крупно — нормальные штуки; синим под ними — возвраты (и повреждённые),
+       которые тоже лежат на складе, но нормальными не считаются */
+    const normal = qty(p), r = rb[p.sku] || {ret:0, dmg:0};
     let cls='';
-    if(p.totalStock<=0) cls='zero'; else if(p.totalStock<=settings.lowStock) cls='low';
+    if(normal<=0) cls='zero'; else if(normal<=settings.lowStock) cls='low';
+    const extra = [r.ret ? `<span class="q-ret">${r.ret} возвр.</span>` : '', r.dmg ? `<span class="q-dmg">${r.dmg} повр.</span>` : ''].filter(Boolean).join('');
+    const qtyHtml = `<div class="stock-qty"><span class="rval ${cls}">${normal} шт</span>${extra ? `<div class="q-extra">${extra}</div>` : ''}</div>`;
     if(emp){
       /* Кабинет сотрудника: только просмотр. Видно название, остаток и
          цену продажи; себестоимость, поставщик и правка скрыты. */
@@ -125,7 +214,7 @@ async function renderStock(){
           <div class="rmeta">${escapeHtml(p.sku)}${p.barcode?' · '+escapeHtml(p.barcode):''}</div>
         </div>
         <div class="rside">
-          <span class="rval ${cls}">${p.totalStock} шт</span>
+          ${qtyHtml}
           <span class="t-caption" style="white-space:nowrap;">${Math.round(p.price)} ₽</span>
         </div>
       </div>`;
@@ -138,7 +227,7 @@ async function renderStock(){
         ${fcHint}
       </div>
       <div class="rside">
-        <span class="rval ${cls}">${p.totalStock} шт</span>
+        ${qtyHtml}
         <button class="icon-btn in" onclick="openQuickPrihod('${escapeAttr(p.sku)}')" aria-label="Быстрый приход"><svg class="icon"><use href="#i-in"/></svg></button>
         <button class="icon-btn out" onclick="openQuickRashod('${escapeAttr(p.sku)}')" aria-label="Быстрый расход"><svg class="icon"><use href="#i-out"/></svg></button>
         <button class="icon-btn edit" onclick="editProduct('${escapeAttr(p.sku)}')" aria-label="Изменить"><svg class="icon"><use href="#i-edit"/></svg></button>
@@ -320,6 +409,9 @@ async function saveProduct(){
     const twin = all.find(x=> String(x.barcode).trim() === p.barcode && x.sku !== sku && x.sku !== originalSku);
     if(twin && !confirm('Такой штрихкод уже у товара «'+twin.name+'».\n\nПри сканировании будет открываться он. Всё равно сохранить?')) return;
   }
+
+  /* отметка «Стоп» в форме не редактируется — сохраняем, как была */
+  if(existing && existing.stopped) p.stopped = true;
 
   const wantedStock = Number(document.getElementById('pmStock').value)||0;
   /* Остаток задаётся операцией, а не полем: иначе правка карточки на одном
