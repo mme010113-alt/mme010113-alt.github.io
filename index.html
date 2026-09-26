@@ -993,6 +993,8 @@ body.labels-open{overflow:hidden;}
           <span style="font-weight:600;">Главное устройство</span>
         </label>
         <div class="t-caption" style="margin:6px 0 0;color:var(--text-tertiary);">Импорт файла работает только на главном устройстве: загруженные данные заменят всё на сервере и разойдутся по остальным телефонам. Отметьте галочку только на одном телефоне. Обычная работа (приход, расход, продажи) синхронизируется со всех устройств как раньше.</div>
+        <button class="btn primary" id="masterPublishBtn" style="width:100%;margin-top:8px;display:none;" onclick="masterPublishFromSettings()"><svg class="icon"><use href="#i-upload"/></svg>Раздать данные этого телефона на все</button>
+        <div class="t-caption" id="masterPublishCap" style="margin:6px 0 0;color:var(--text-tertiary);display:none;">Сервер станет точной копией этого телефона (лишнее на сервере удалится), а остальные телефоны при следующей связи сотрут свои данные и скачают эти. Вызывается сама после импорта файла.</div>
         <div class="alert" id="storageStatus"></div>
       </div>
       <div class="card">
@@ -5987,6 +5989,23 @@ function applyMasterUI(){
   if(chk) chk.checked = isMasterDevice();
   const btn = document.getElementById('importBtn');
   if(btn) btn.style.opacity = isMasterDevice() ? '' : '0.5';
+  const show = isMasterDevice() && !isEmployee() ? '' : 'none';
+  const pb = document.getElementById('masterPublishBtn'); if(pb) pb.style.display = show;
+  const pc = document.getElementById('masterPublishCap'); if(pc) pc.style.display = show;
+}
+async function publishToAllPhones(){
+  if(!window.Sync || !Sync.isConfigured()){ toast('Синхронизация не настроена'); return; }
+  toast('Раздаю данные на все телефоны…');
+  const r = await Sync.publishAsMaster();
+  await renderSyncStatusBox();
+  toast(r.ok
+    ? ('Готово: сервер = этот телефон' + (r.removed ? ('; удалено лишнего на сервере: ' + r.removed) : '') + '. Остальные телефоны обновятся сами.')
+    : ('Не вышло: ' + r.error));
+  return r;
+}
+async function masterPublishFromSettings(){
+  if(!confirm('Раздать данные ЭТОГО телефона на все?\n\nВсё, чего нет на этом телефоне, будет удалено с сервера, а остальные телефоны заменят свои данные на эти. Неотправленные правки на других телефонах пропадут.')) return;
+  await publishToAllPhones();
 }
 function requestImport(){
   if(!isMasterDevice()){
@@ -6262,7 +6281,8 @@ function importBackup(e){
       syncInvActionUI();
       await renderStock(); await renderHistory(); await renderStats(); await renderReports(); await renderInvList();
       await updateProductCountPill();
-      toast('Данные заменены из файла. Нажмите «Обновить», чтобы разослать на другие телефоны');
+      toast('Данные заменены из файла');
+      if(window.Sync && Sync.isConfigured() && !isEmployee()) await publishToAllPhones();
     }catch(err){ toast('Ошибка импорта: файл повреждён или имеет неверный формат'); }
   };
   reader.readAsText(file);
