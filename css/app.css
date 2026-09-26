@@ -610,3 +610,6 @@ body.labels-open{overflow:hidden;}
 .top-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:var(--sp-3);}
 .top-sheet-head h3{margin:0;}
 .q-ret-inline{color:var(--accent-strong);font-weight:600;}
+
+/* пока открыта клавиатура, нижнее меню не показываем (см. input.js, iOS) */
+body.kb-open nav.bottom{display:none;}
