@@ -277,7 +277,7 @@ function showSection(name, btn){
   if(name==='returns') renderReturns();
   if(name==='history') renderHistory();
   if(name==='stats') { renderStats(); renderReports(); }
-  if(name==='settings'){ renderStorageStatus(); renderSyncStatusBox(); renderSoundRows(); }
+  if(name==='settings'){ renderStorageStatus(); renderSyncStatusBox(); renderSoundRows(); renderSnapshots(); }
   if(name==='finance') { renderFinance(currentFinancePeriod, null); renderFinSubTab(); }
   if(name==='balance') { renderBalance(currentBalancePeriod, null); }
 }
