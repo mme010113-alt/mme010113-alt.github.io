@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=76">
+<link rel="stylesheet" href="css/app.css?v=77">
 </head>
 <body>
 
@@ -458,6 +458,15 @@
         <div class="t-caption" style="margin:6px 0 0;color:var(--text-tertiary);">Импорт файла работает только на главном устройстве: загруженные данные заменят всё на сервере и разойдутся по остальным телефонам. Отметьте галочку только на одном телефоне. Обычная работа (приход, расход, продажи) синхронизируется со всех устройств как раньше.</div>
         <button class="btn primary" id="masterPublishBtn" style="width:100%;margin-top:8px;display:none;" onclick="masterPublishFromSettings()"><svg class="icon"><use href="#i-upload"/></svg>Раздать данные этого телефона на все</button>
         <div class="t-caption" id="masterPublishCap" style="margin:6px 0 0;color:var(--text-tertiary);display:none;">Сервер станет точной копией этого телефона (лишнее на сервере удалится), а остальные телефоны при следующей связи сотрут свои данные и скачают эти. Вызывается сама после импорта файла.</div>
+      </div>
+
+      <div class="card" id="snapshotsCard">
+        <div class="card-head">
+          <span class="t-eyebrow">Копии на сервере</span>
+          <button class="btn ghost sm" style="width:auto;" onclick="snapshotNow()"><svg class="icon"><use href="#i-plus"/></svg>Сделать сейчас</button>
+        </div>
+        <div class="t-caption" style="margin:-4px 0 var(--sp-2);color:var(--text-tertiary);">Сервер сам сохраняет все данные склада каждую ночь и хранит 30 дней. «Откатить» вернёт товары, историю и начисления на всех телефонах к моменту копии — работает на главном устройстве. Перед откатом нынешнее состояние тоже сохраняется, так что откат можно отменить.</div>
+        <div id="snapshotsList"></div>
         <div class="alert" id="storageStatus"></div>
       </div>
       <div class="card">
@@ -904,19 +913,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=76"></script>
-<script src="js/db.js?v=76"></script>
-<script src="js/sync-ui.js?v=76"></script>
-<script src="js/input.js?v=76"></script>
-<script src="js/returns-scan.js?v=76"></script>
-<script src="js/sounds.js?v=76"></script>
-<script src="js/stock-history.js?v=76"></script>
-<script src="js/finance.js?v=76"></script>
-<script src="js/balance.js?v=76"></script>
-<script src="js/analytics.js?v=76"></script>
-<script src="js/settings-roles.js?v=76"></script>
-<script src="js/backup-labels.js?v=76"></script>
+<script src="sync-config.js?v=77"></script>
+<script src="js/db.js?v=77"></script>
+<script src="js/sync-ui.js?v=77"></script>
+<script src="js/input.js?v=77"></script>
+<script src="js/returns-scan.js?v=77"></script>
+<script src="js/sounds.js?v=77"></script>
+<script src="js/stock-history.js?v=77"></script>
+<script src="js/finance.js?v=77"></script>
+<script src="js/balance.js?v=77"></script>
+<script src="js/analytics.js?v=77"></script>
+<script src="js/settings-roles.js?v=77"></script>
+<script src="js/backup-labels.js?v=77"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=76"></script>
+<script src="sync.js?v=77"></script>
 </body>
 </html>
