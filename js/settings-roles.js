@@ -71,12 +71,11 @@ async function applyRoleUI(){
   ['invoiceSelCount','historySelCount'].forEach(id=>{ const el = document.getElementById(id); if(el) el.hidden = emp; });
   const ra = document.getElementById('returnsActions');
   if(ra) ra.hidden = emp;
-  // на «Складе» у партнёра — только строка поиска (по SKU/названию),
-  // без фильтра по поставщику и без кнопки сканирования
+  // на «Складе» у партнёра в фильтре только сортировка — поставщиков он не видит
   const supFil = document.getElementById('supplierFilter');
-  if(supFil){ supFil.hidden = emp; if(emp) supFil.value = ''; }
-  const scanBtn = document.getElementById('stockScanBtn');
-  if(scanBtn) scanBtn.hidden = emp;
+  if(supFil && emp) supFil.value = '';
+  const supBlock = document.getElementById('stockSupplierBlock');
+  if(supBlock) supBlock.hidden = emp;
   // партнёру в фильтре «Истории» незачем «Корректировка» — он их не видит
   const corrOpt = document.querySelector('#historyFilter option[value="Корректировка"]');
   if(corrOpt) corrOpt.hidden = emp;
