@@ -31,7 +31,7 @@ async function refreshAfterSync(){
   await renderStats();
   await updateProductCountPill();
   const active = document.querySelector('main section.active');
-  if(active && active.id === 'sec-finance') await renderFinance(currentFinancePeriod, null);
+  if(active && active.id === 'sec-finance'){ await renderFinance(currentFinancePeriod, null); renderFinSubTab(); }
   if(active && active.id === 'sec-balance') await renderBalance(currentBalancePeriod, null);
 }
 
@@ -271,14 +271,14 @@ function showSection(name, btn){
   if(btn) btn.classList.add('active');
   closeChromeMenu();
   try{ window.scrollTo(0,0); }catch(e){}
-  if(name==='panel') focusForScanner(document.getElementById('scanInput'));
+  if(name==='panel'){ focusForScanner(document.getElementById('scanInput')); renderReorderCard(); }
   if(name==='stock') renderStock();
   if(name==='inv') renderInvList();
   if(name==='returns') renderReturns();
   if(name==='history') renderHistory();
   if(name==='stats') { renderStats(); renderReports(); }
   if(name==='settings'){ renderStorageStatus(); renderSyncStatusBox(); renderSoundRows(); }
-  if(name==='finance') { renderFinance(currentFinancePeriod, null); }
+  if(name==='finance') { renderFinance(currentFinancePeriod, null); renderFinSubTab(); }
   if(name==='balance') { renderBalance(currentBalancePeriod, null); }
 }
 function openSettings(){
