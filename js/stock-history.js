@@ -294,8 +294,21 @@ function openProductModal(){
   ['pmSku','pmName','pmCategory','pmSupplier','pmBarcode','pmCost','pmPrice','pmCommission','pmTax','pmPackaging','pmDeliveryDiscount','pmStock'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('pmSkuOriginal').value='';
   document.getElementById('pmSku').disabled=false;
+  document.getElementById('pmStock').dataset.shown = '';
   clearFormErrors();
   document.getElementById('productModalBg').classList.add('show');
+}
+/* Пока карточка открыта, остаток мог измениться (продажа с другого
+   телефона). Если человек поле «Остаток» не трогал — показываем свежее число. */
+async function refreshOpenProductStock(){
+  const bg = document.getElementById('productModalBg'), inp = document.getElementById('pmStock');
+  const sku = document.getElementById('pmSkuOriginal').value;
+  if(!bg || !bg.classList.contains('show') || !sku || inp.dataset.shown === '' || inp.dataset.shown === undefined) return;
+  if(inp.value !== inp.dataset.shown || document.activeElement === inp) return;
+  const p = await get('products', sku);
+  if(!p) return;
+  inp.value = p.totalStock||0;
+  inp.dataset.shown = String(p.totalStock||0);
 }
 async function editProduct(sku){
   const p = await get('products', sku);
@@ -316,6 +329,7 @@ async function editProduct(sku){
   document.getElementById('pmPackaging').value=p.packaging||0;
   document.getElementById('pmDeliveryDiscount').value=p.deliveryDiscount||0;
   document.getElementById('pmStock').value=p.totalStock||0;
+  document.getElementById('pmStock').dataset.shown = String(p.totalStock||0);
   clearFormErrors();
   document.getElementById('productModalBg').classList.add('show');
 }
@@ -413,14 +427,23 @@ async function saveProduct(){
   /* отметка «Стоп» в форме не редактируется — сохраняем, как была */
   if(existing && existing.stopped) p.stopped = true;
 
-  const wantedStock = Number(document.getElementById('pmStock').value)||0;
+  const stockInput = document.getElementById('pmStock');
+  const wantedStock = Number(stockInput.value)||0;
+  const shownAtOpen = stockInput.dataset.shown;
   /* Остаток задаётся операцией, а не полем: иначе правка карточки на одном
      устройстве затёрла бы приходы и расходы, сделанные на другом. */
   p.totalStock = existing ? (Number(existing.totalStock)||0) : 0;
   await put('products', p);
   if(renaming) await renameSku(originalSku, sku);
 
-  const diff = wantedStock - p.totalStock;
+  /* У существующего товара записываем ТОЛЬКО то, что человек сам изменил в
+     поле «Остаток» (новое число минус показанное при открытии). Раньше
+     бралась разница с остатком на момент сохранения — и продажа, сделанная
+     (здесь или на другом телефоне), пока карточка была открыта, тут же
+     «отменялась» корректировкой: расход −5 → через секунду «+5». */
+  const diff = (existing && shownAtOpen !== undefined && shownAtOpen !== '')
+    ? wantedStock - Number(shownAtOpen)
+    : wantedStock - p.totalStock;
   if(diff !== 0){
     await logHistory(existing ? 'Корректировка' : 'Начальный остаток', p.barcode, p, Math.abs(diff), {delta: diff});
   }
