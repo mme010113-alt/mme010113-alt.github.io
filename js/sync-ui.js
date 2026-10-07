@@ -26,6 +26,7 @@ function describeSync(state, detail){
 
 /* Вызывается синхронизацией, когда с сервера прилетели чужие изменения. */
 async function refreshAfterSync(){
+  await refreshOpenProductStock();
   await renderStock();
   await renderHistory();
   await renderStats();
