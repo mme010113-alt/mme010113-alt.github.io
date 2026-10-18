@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=82">
+<link rel="stylesheet" href="css/app.css?v=83">
 </head>
 <body>
 
@@ -162,6 +162,10 @@
               <button onclick="padKey('camQtyInput','0')">0</button>
               <button class="aux" onclick="padKey('camQtyInput','back')" aria-label="Стереть">⌫</button>
             </div>
+            <label class="single-order" id="camSingleOrderRow">
+              <input type="checkbox" id="camSingleOrder">
+              <span><b>Единый заказ</b><small>один покупатель — % партнёрам по общей сумме</small></span>
+            </label>
             <div class="btn-row">
               <button class="btn ghost sm" onclick="cancelCamConfirm()">Отмена</button>
               <button class="btn primary sm" onclick="confirmCamScan()">Подтвердить</button>
@@ -849,6 +853,10 @@
       <button onclick="padKey('qrQtyInput','0')">0</button>
       <button class="aux" onclick="padKey('qrQtyInput','back')" aria-label="Стереть">⌫</button>
     </div>
+    <label class="single-order">
+      <input type="checkbox" id="qrSingleOrder">
+      <span><b>Единый заказ</b><small>один покупатель — % партнёрам по общей сумме</small></span>
+    </label>
     <div class="btn-row" style="margin-top:var(--sp-3);">
       <button class="btn ghost sm" onclick="closeQuickRashod()">Отмена</button>
       <button class="btn primary sm" onclick="confirmQuickRashod()"><svg class="icon"><use href="#i-out"/></svg>В расход</button>
@@ -933,19 +941,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=82"></script>
-<script src="js/db.js?v=82"></script>
-<script src="js/sync-ui.js?v=82"></script>
-<script src="js/input.js?v=82"></script>
-<script src="js/returns-scan.js?v=82"></script>
-<script src="js/sounds.js?v=82"></script>
-<script src="js/stock-history.js?v=82"></script>
-<script src="js/finance.js?v=82"></script>
-<script src="js/balance.js?v=82"></script>
-<script src="js/analytics.js?v=82"></script>
-<script src="js/settings-roles.js?v=82"></script>
-<script src="js/backup-labels.js?v=82"></script>
+<script src="sync-config.js?v=83"></script>
+<script src="js/db.js?v=83"></script>
+<script src="js/sync-ui.js?v=83"></script>
+<script src="js/input.js?v=83"></script>
+<script src="js/returns-scan.js?v=83"></script>
+<script src="js/sounds.js?v=83"></script>
+<script src="js/stock-history.js?v=83"></script>
+<script src="js/finance.js?v=83"></script>
+<script src="js/balance.js?v=83"></script>
+<script src="js/analytics.js?v=83"></script>
+<script src="js/settings-roles.js?v=83"></script>
+<script src="js/backup-labels.js?v=83"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=82"></script>
+<script src="sync.js?v=83"></script>
 </body>
 </html>
