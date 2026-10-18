@@ -425,7 +425,7 @@ async function applyStockOperation(p, barcode, qty, opts){
   const histUid = await logHistory(currentMode, barcode, p, qty);
   /* Каждый «Расход» = продажа, с неё партнёрам идёт процент. Начисление
      создаётся тут же и появляется у партнёров в «Балансе». */
-  if(currentMode === 'Расход') await createSaleCommission(p, qty, histUid);
+  if(currentMode === 'Расход') await createSaleCommission(p, qty, histUid, !!opts.singleOrder);
   p.totalStock = await recalcStock(p.sku);
   showLastProduct(p);
   showStatus(p.name+' — '+currentMode.toLowerCase()+' '+sign+displayQty+' шт.', currentMode==='Расход' ? 'danger' : 'success');
@@ -437,12 +437,15 @@ async function applyStockOperation(p, barcode, qty, opts){
 
 /* Начисление партнёрам с одной продажи. Сумма = кол-во × цена продажи,
    ставка — по вилке (см. Настройки). Пишется снимком: смена ставок позже
-   прошлые начисления не трогает. Начисление общее — его видят все партнёры. */
-async function createSaleCommission(p, qty, opUid){
+   прошлые начисления не трогает. Начисление общее — его видят все партнёры.
+   Несколько штук разом обычно = несколько разных покупателей, поэтому
+   ставка берётся по цене одной штуки. Галочка «Единый заказ» — один
+   покупатель взял всё сразу: тогда ставка по общей сумме. */
+async function createSaleCommission(p, qty, opUid, singleOrder){
   const price = Number(p.price) || 0;
   const amount = price * (Number(qty) || 0);
   if(amount <= 0) return;
-  const ratePercent = rateForAmount(amount);
+  const ratePercent = rateForAmount(singleOrder ? amount : price);
   const now = Date.now();
   await put('orders', {
     uid: newUid(),
@@ -453,7 +456,7 @@ async function createSaleCommission(p, qty, opUid){
     amount,
     ratePercent,
     commission: Math.round(amount * ratePercent) / 100,
-    note: 'Продажа: ' + p.name,
+    note: 'Продажа: ' + p.name + (singleOrder && qty > 1 ? ' (единый заказ)' : ''),
     timestamp: now,
     dateKey: todayDateKey(),
     dateDisplay: new Date(now).toLocaleDateString('ru-RU')
@@ -502,6 +505,8 @@ function showCamConfirm(p, barcode){
   document.getElementById('camConfirmStock').textContent = 'На складе сейчас: '+p.totalStock+' шт';
   document.getElementById('camQtyInput').value = 1;
   qtyReplaceNext = true;   // первая же цифра на пультике заменит единицу, а не допишется к ней
+  document.getElementById('camSingleOrder').checked = false;
+  document.getElementById('camSingleOrderRow').hidden = currentMode !== 'Расход';
   const panel = document.getElementById('camConfirm');
   panel.style.display = 'block';
   if(touchQty) try{ panel.scrollIntoView({block:'center', behavior:'smooth'}); }catch(e){}
@@ -519,7 +524,8 @@ function cancelCamConfirm(){
 async function confirmCamScan(){
   if(!pendingCam) return;
   const qty = Math.max(1, Math.round(Number(document.getElementById('camQtyInput').value)||1));
-  await applyStockOperation(pendingCam.product, pendingCam.barcode, qty);
+  await applyStockOperation(pendingCam.product, pendingCam.barcode, qty,
+    {singleOrder: document.getElementById('camSingleOrder').checked});
   cancelCamConfirm();
 }
 
