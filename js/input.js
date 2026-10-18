@@ -696,6 +696,7 @@ async function openQuickRashod(sku){
   const input = document.getElementById('qrQtyInput');
   input.value = 1;
   qtyReplaceNext = true;
+  document.getElementById('qrSingleOrder').checked = false;
   document.getElementById('quickRashodModalBg').classList.add('show');
 }
 function adjustQuickRashodQty(delta){
@@ -711,13 +712,14 @@ async function confirmQuickRashod(){
   if(!pendingQuickRashod) return;
   const p = pendingQuickRashod;
   const qty = Math.max(1, Math.round(Number(document.getElementById('qrQtyInput').value)||1));
+  const singleOrder = document.getElementById('qrSingleOrder').checked;
   closeQuickRashod();
   const barcode = p.barcode || p.sku;
   /* applyStockOperation берёт направление из currentMode — подменяем его
      на время одного вызова, чтобы не трогать режим на вкладке «Панель». */
   const savedMode = currentMode;
   currentMode = 'Расход';
-  const ok = await applyStockOperation(p, barcode, qty);
+  const ok = await applyStockOperation(p, barcode, qty, {singleOrder});
   currentMode = savedMode;
   if(ok) toast(p.name + ' — расход −' + qty + ' шт');
 }
