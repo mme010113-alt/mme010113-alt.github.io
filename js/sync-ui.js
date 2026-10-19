@@ -49,10 +49,24 @@ function togglePassVisible(){
   input.focus();
 }
 
+/* Режимы окна входа: login — вход; register — новый отдельный склад;
+   partner — вход партнёра по коду; change — смена пароля. */
+const AUTH_TEXT = {
+  login:    {title:'Вход в склад', hint:'Один вход на телефон, планшет и компьютер — данные едут между ними сами.',
+             label:'E-mail или логин', ph:'например, ivan@mail.ru', btn:'Войти'},
+  register: {title:'Новый склад', hint:'Укажите e-mail и придумайте пароль. Склад будет только ваш: ваши товары никто другой не увидит, чужие — вы.',
+             label:'E-mail', ph:'ivan@mail.ru', btn:'Создать склад'},
+  partner:  {title:'Вход для партнёра', hint:'Введите код приглашения от владельца, а логин и пароль придумайте свои.',
+             label:'E-mail или логин', ph:'например, ivan@mail.ru', btn:'Войти'},
+  change:   {title:'Новый пароль', hint:'Придумайте новый пароль, не короче 6 символов. На других устройствах нужно будет войти заново.',
+             label:'', ph:'', btn:'Сохранить'}
+};
 function openPinModal(mode){
+  mode = AUTH_TEXT[mode] ? mode : 'login';
   const bg = document.getElementById('pinModalBg');
   if(!bg) return;
   const isChange = (mode === 'change');
+  const t = AUTH_TEXT[mode];
   document.getElementById('pinError').classList.remove('show');
   const pass = document.getElementById('pinInput');
   pass.value = '';
@@ -61,22 +75,26 @@ function openPinModal(mode){
   document.getElementById('pinEye').classList.remove('on');
   document.getElementById('pinEye').innerHTML = '<svg class="icon"><use href="#i-eye"/></svg>';
 
+  const loginInput = document.getElementById('loginInput');
   document.getElementById('loginField').style.display = isChange ? 'none' : 'block';
-  document.getElementById('loginInput').value = (window.Sync && Sync.lastLogin) ? Sync.lastLogin() : '';
-  document.getElementById('pinTitle').textContent = isChange ? 'Новый пароль' : 'Вход в склад';
-  document.getElementById('pinHint').textContent = isChange
-      ? 'Придумайте новый пароль, не короче 6 символов. На других устройствах нужно будет войти заново.'
-      : 'Один вход на телефон, планшет и компьютер — данные едут между ними сами.';
-  const note = document.querySelector('.auth-note');
-  if(note) note.style.display = isChange ? 'none' : 'block';
-  document.querySelectorAll('.auth-skip').forEach(b=>{ b.style.display = isChange ? 'none' : 'block'; });
+  loginInput.value = (mode === 'login' && window.Sync && Sync.lastLogin) ? Sync.lastLogin() : '';
+  loginInput.placeholder = t.ph;
+  loginInput.type = mode === 'register' ? 'email' : 'text';
+  pass.setAttribute('autocomplete', (isChange || mode === 'register') ? 'new-password' : 'current-password');
+  document.getElementById('loginLabel').textContent = t.label;
+  document.getElementById('pinTitle').textContent = t.title;
+  document.getElementById('pinHint').textContent = t.hint;
+  document.getElementById('pinSubmitText').textContent = t.btn;
+  const note = document.getElementById('authNote');
+  if(note) note.style.display = mode === 'login' ? 'block' : 'none';
+  // на основном входе — все пути; в остальных шагах только «Назад ко входу»
+  document.querySelectorAll('.auth-skip').forEach(b=>{ b.style.display = mode === 'login' ? 'block' : 'none'; });
+  document.getElementById('authBackBtn').hidden = (mode === 'login' || isChange);
 
-  // сброс режима «вход партнёра»
-  bg.dataset.emp = '0';
-  const ef = document.getElementById('empFields'); if(ef) ef.hidden = true;
-  const etb = document.getElementById('empToggleBtn'); if(etb) etb.textContent = 'Войти как партнёр';
+  bg.dataset.emp = mode === 'partner' ? '1' : '0';
+  const ef = document.getElementById('empFields'); if(ef) ef.hidden = mode !== 'partner';
 
-  bg.dataset.mode = mode || 'login';
+  bg.dataset.mode = mode;
   bg.classList.add('show');
   setTimeout(()=>{
     const focusId = (isChange || document.getElementById('loginInput').value) ? 'pinInput' : 'loginInput';
@@ -122,27 +140,30 @@ async function submitPin(){
     const code = (document.getElementById('inviteCodeInput').value || '').trim();
     if(!code){ pinFail('Введите код приглашения'); return; }
     setSyncLine('Проверяем…');
-    const si = await Sync.signIn(login, password);
+    const si = await Sync.signIn(login, password, 'auto');
     if(!si.ok){ pinFail(si.error || 'Не удалось войти'); setSyncLine(describeSync('signed-out')); return; }
     const jr = await Sync.joinWorkspace(code, '');
     document.getElementById('pinSubmit').disabled = false;
     if(!jr.ok){ pinFail(jr.error || 'Не удалось присоединиться по коду'); return; }
+    if(si.switched){ location.reload(); return; }   // данные прежнего аккаунта стёрты — начинаем начисто
     closePinModal();
     toast('Вы вошли как партнёр');
     await Sync.start();
     return;
   }
 
+  if(mode === 'register' && login.indexOf('@') === -1){ pinFail('Введите e-mail, например ivan@mail.ru'); return; }
   setSyncLine('Проверяем…');
-  const res = await Sync.signIn(login, password);
+  const res = await Sync.signIn(login, password, mode === 'register' ? 'register' : 'login');
   document.getElementById('pinSubmit').disabled = false;
   if(!res.ok){
     pinFail(res.error || 'Не удалось войти');
     setSyncLine(describeSync('signed-out'));
     return;
   }
+  if(res.switched){ location.reload(); return; }
   closePinModal();
-  toast(res.created ? 'Склад привязан к этому логину' : 'Вход выполнен');
+  toast(res.created ? 'Новый склад создан' : 'Вход выполнен');
   await Sync.start();
 }
 
@@ -226,13 +247,18 @@ async function fullResyncFromSettings(){
   await renderSyncStatusBox();
   await renderStock();
 }
+/* После выхода данные склада с устройства стираются: за этим компьютером
+   может работать другой человек со своим аккаунтом. Всё хранится на
+   сервере и вернётся при следующем входе — поэтому сначала досылаем то,
+   что ещё не уехало, и предупреждаем, если дослать не вышло. */
 async function syncSignOut(){
-  if(!confirm('Выйти из аккаунта на этом устройстве?\n\nДанные склада останутся здесь, но синхронизация с другими устройствами прекратится, пока не войдёте снова.')) return;
+  if(!confirm('Выйти из аккаунта на этом устройстве?\n\nДанные склада сохранены на сервере и вернутся, когда войдёте снова. С этого устройства они будут убраны.')) return;
+  if(navigator.onLine){ try{ await Sync.syncNow('выход'); }catch(e){} }
+  const left = await countUnsent();
+  if(left > 0 && !confirm('Не отправлено на сервер: ' + left + ' изменений (нет связи?). При выходе они пропадут.\n\nВсё равно выйти?')) return;
   await Sync.signOut();
-  if(typeof applyRoleUI === 'function') await applyRoleUI();
-  await renderSyncStatusBox();
-  toast('Вы вышли из аккаунта');
-  openPinModal('login');
+  await wipeAccountData();
+  location.reload();
 }
 
 async function initSync(){
