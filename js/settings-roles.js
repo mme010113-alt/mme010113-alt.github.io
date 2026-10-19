@@ -87,6 +87,10 @@ async function applyRoleUI(){
   }
 
   if(!emp) renderMembersCard();
+  renderWsSwitch();
+  // служебные кнопки — только хозяину сервиса (и только в своём складе)
+  const admin = !emp && window.Sync && Sync.isAdmin ? await Sync.isAdmin() : false;
+  document.body.classList.toggle('is-admin', admin);
 
   // партнёру — только системная клавиатура телефона
   try{ refreshSoftKeyboardMode(); }catch(e){}
@@ -294,3 +298,46 @@ function printQRForModal(){
   openBarcodeSheet([{name, barcode, sku, price}]);
 }
 
+
+/* ---- несколько складов: переключатель ----
+   Партнёр может работать на нескольких дропшиперов. Список складов и
+   выбранный — в Sync (sklad-ws-list / sklad-active-ws); смена склада
+   перезапускает приложение на базе этого склада. */
+function renderWsSwitch(){
+  const btn = document.getElementById('wsSwitchBtn');
+  if(!btn || !window.Sync || !Sync.workspaces) return;
+  // партнёру кнопка нужна всегда — через неё он подключает новые склады
+  btn.hidden = !(Sync.workspaces().length > 1 || isEmployee());
+}
+function openWsSwitcher(){
+  const list = (window.Sync && Sync.workspaces) ? Sync.workspaces() : [];
+  const active = Sync.activeWorkspace();
+  document.getElementById('wsList').innerHTML = list.map(w=>{
+    const on = w.id === active;
+    return `<button type="button" class="ws-item${on ? ' on' : ''}" onclick="pickWorkspace('${escapeAttr(w.id)}')">
+      <span class="ws-dot"></span>
+      <span class="ws-name">${escapeHtml(w.name)}<small>${w.id === 'own' ? 'владелец' : 'партнёр'}</small></span>
+      ${on ? '<svg class="icon"><use href="#i-check"/></svg>' : ''}
+    </button>`;
+  }).join('') || '<div class="t-small">Пока нет ни одного склада.</div>';
+  document.getElementById('wsJoinCode').value = '';
+  document.getElementById('wsJoinError').classList.remove('show');
+  document.getElementById('wsJoinBox').hidden = !isEmployee();
+  document.getElementById('wsModalBg').classList.add('show');
+}
+function closeWsSwitcher(){
+  document.getElementById('wsModalBg').classList.remove('show');
+}
+function pickWorkspace(id){
+  if(id === Sync.activeWorkspace()){ closeWsSwitcher(); return; }
+  toast('Открываю склад…');
+  Sync.switchWorkspace(id);
+}
+async function joinAnotherWorkspace(){
+  const code = (document.getElementById('wsJoinCode').value || '').trim();
+  const err = document.getElementById('wsJoinError');
+  if(!code){ err.textContent = 'Введите код приглашения'; err.classList.add('show'); return; }
+  const r = await Sync.joinWorkspace(code, '');
+  if(!r.ok){ err.textContent = r.error || 'Не удалось подключить'; err.classList.add('show'); return; }
+  toast('Склад подключён');   // joinWorkspace сам открывает новый склад (перезапуск)
+}
