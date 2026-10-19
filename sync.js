@@ -66,31 +66,65 @@
     }catch(e){ return null; }
   }
 
-  /* Первый вход на первом устройстве заводит учётную запись, на остальных —
-     просто входит. Разделять эти случаи вручную пользователю не нужно. */
-  async function signIn(login, password){
+  /* Локальная база устройства закреплена за одним аккаунтом. Вошёл другой
+     человек — стираем данные прежнего (см. wipeAccountData в db.js).
+     Старые версии владельца базы не записывали — тогда сверяем с прежним
+     логином: был другой и на устройстве есть товары — значит, чужие. */
+  async function claimDevice(user, prevLogin){
+    const prev = await window.localAccountUid();
+    let switched;
+    if(prev) switched = prev !== user.id;
+    else {
+      const last = prevLogin !== undefined ? prevLogin : lastLogin();
+      const hasData = (await window.getAll('products')).length > 0;
+      switched = Boolean(hasData && last && loginToEmail(last) !== String(user.email || '').toLowerCase());
+    }
+    if(switched) await window.wipeAccountData();
+    await window.setLocalAccountUid(user.id);
+    return switched;
+  }
+
+  /* mode: 'login' — только вход; 'register' — только новый аккаунт;
+     'auto' — войти, а если такого нет, завести (так входит партнёр). */
+  async function signIn(login, password, mode){
+    mode = mode || 'login';
     if(!init()) return {ok:false, error:'Синхронизация не настроена'};
     const email = loginToEmail(login);
     if(!email) return {ok:false, error:'Укажите логин'};
     if(String(password || '').length < 6) return {ok:false, error:'Пароль — не короче 6 символов'};
 
-    let res = await client.auth.signInWithPassword({email, password});
-    if(!res.error){ rememberLogin(login); return {ok:true, created:false}; }
-
-    const msg = String(res.error.message || '');
-    if(/invalid login credentials/i.test(msg)){
-      // либо такой учётки ещё нет, либо пароль неверный — пробуем завести
+    const done = async (created)=>{
+      const prevLogin = lastLogin();
+      rememberLogin(login);
+      const user = await currentUser();
+      const switched = user ? await claimDevice(user, prevLogin) : false;
+      return {ok:true, created, switched};
+    };
+    const register = async ()=>{
       const signUp = await client.auth.signUp({email, password});
       if(signUp.error){
         const m = String(signUp.error.message || '');
-        if(/already registered|already exists/i.test(m)) return {ok:false, error:'Неверный пароль для этого логина'};
+        if(/already registered|already exists/i.test(m)) return {ok:false, error:'Такой логин уже занят. Если он ваш — вернитесь ко входу.'};
         return {ok:false, error: m};
       }
       if(!signUp.data || !signUp.data.session){
         return {ok:false, error:'В Supabase включено подтверждение почты — выключите Authentication → Providers → Email → Confirm email'};
       }
-      rememberLogin(login);
-      return {ok:true, created:true};
+      return done(true);
+    };
+
+    if(mode === 'register') return register();
+
+    const res = await client.auth.signInWithPassword({email, password});
+    if(!res.error) return done(false);
+    const msg = String(res.error.message || '');
+    if(/invalid login credentials/i.test(msg)){
+      if(mode === 'auto'){
+        const r = await register();
+        if(!r.ok && /уже занят/.test(r.error)) return {ok:false, error:'Неверный пароль для этого логина'};
+        return r;
+      }
+      return {ok:false, error:'Неверный логин или пароль. Впервые здесь — нажмите «Создать новый склад».'};
     }
     return {ok:false, error: msg};
   }
@@ -927,6 +961,10 @@
     if(!init()) return false;
     const user = await currentUser();
     if(!user){ emit('signed-out'); return false; }
+    if(await window.localAccountUid() !== user.id){
+      // вход сохранился с прошлого раза, а база ещё не помечена (старая версия)
+      if(await claimDevice(user)){ location.reload(); return false; }
+    }
     await resolveMembership();
     if(!membership) await ensureInviteCode();   // владелец — заводим код при первом запуске
     if(typeof window.applyRoleUI === 'function') window.applyRoleUI();
@@ -943,7 +981,7 @@
   setInterval(()=>{ if(ready() && navigator.onLine) syncNow('по расписанию'); }, 120000);
 
   window.Sync = {
-    init, start, signIn, signOut, changePassword, syncNow, currentUser, publishAsMaster, serverLiveUids,
+    init, start, signIn, signOut, changePassword, loginToEmail, syncNow, currentUser, publishAsMaster, serverLiveUids,
     takeSnapshot, listSnapshots, restoreSnapshot, partnerMarkDamaged, partnerRestoreDamaged,
     startRealtime, stopRealtime, onStatus, ready, lastLogin,
     isConfigured: ()=> Boolean(CFG.url && CFG.key),
