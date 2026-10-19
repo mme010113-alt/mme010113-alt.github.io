@@ -259,15 +259,15 @@ function renderFinanceRing(f, adSpend, netProfitFinal, partnerComm){
      поэтому занимала половину круга и сплющивала всё остальное. Главная
      цифра здесь — чистая прибыль, она же в центре. */
   const segments = [
-    {name:'Чистая прибыль', value:netProfitFinal, color:'#4A7DFF', icon:'i-check-circle'},
-    {name:'Себестоимость', value:f.cogs, color:'#2BBE85', icon:'i-box'},
-    {name:'Валовая прибыль', value:f.grossProfit, color:'#FFA35C', icon:'i-chart'},
-    {name:'Налог', value:f.taxAmount, color:'#E8598A', icon:'i-alert'},
-    {name:'Комиссия маркетплейса', value:f.commissionAmount, color:'#FFC94D', icon:'i-wallet'},
-    {name:'Комиссия партнёрам', value:partnerComm || 0, color:'#E86F2E', icon:'i-coins'},
-    {name:'Упаковка', value:f.packagingAmount, color:'#2FBFAE', icon:'i-box'},
-    {name:'Скидка на доставку', value:f.deliveryDiscountAmount, color:'#8C7EF2', icon:'i-out'},
-    {name:'Реклама', value:adSpend, color:'#B57BFF', icon:'i-chart'},
+    {name:'Чистая прибыль', value:netProfitFinal, color:'#4338FF', icon:'i-check-circle'},
+    {name:'Себестоимость', value:f.cogs, color:'#10B981', icon:'i-box'},
+    {name:'Валовая прибыль', value:f.grossProfit, color:'#FF9F43', icon:'i-chart'},
+    {name:'Налог', value:f.taxAmount, color:'#F0508C', icon:'i-alert'},
+    {name:'Комиссия маркетплейса', value:f.commissionAmount, color:'#F5C518', icon:'i-wallet'},
+    {name:'Комиссия партнёрам', value:partnerComm || 0, color:'#F2683C', icon:'i-coins'},
+    {name:'Упаковка', value:f.packagingAmount, color:'#14B8A6', icon:'i-box'},
+    {name:'Скидка на доставку', value:f.deliveryDiscountAmount, color:'#A07BFF', icon:'i-out'},
+    {name:'Реклама', value:adSpend, color:'#C084FC', icon:'i-chart'},
   ];
   segments.forEach(s=>{ s.arcValue = Math.max(0, s.value); });
 
