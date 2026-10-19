@@ -81,44 +81,65 @@ function refreshCustomSounds(){
 /* Прогоняет каждый элемент пула коротким muted-воспроизведением ВНУТРИ
    жеста пользователя. После этого iOS разрешает запускать эти же элементы
    из кода — по скану. Один раз за «сеанс видимости». */
+/* Прогрев идёт асинхронно: play() → (позже) pause(). Если в этот момент
+   элемент понадобился для настоящего сигнала (касание кнопки «В расход»
+   сначала прогревает, а следом сразу играет), прогрев не должен его
+   глушить и останавливать — раньше именно так звук пропадал «через раз».
+   Метка _priming снимается настоящим воспроизведением, и тогда прогрев
+   элемент не трогает. */
 function primeCustomSounds(){
   if(customSoundsPrimed) return;
   const entries = Object.values(soundPlayers);
   if(!entries.length) return;
-  let ok = true;
+  customSoundsPrimed = true;
   entries.forEach(entry=>{
     entry.pool.forEach(a=>{
+      if(!a.paused) return;              // уже звучит по-настоящему — не трогаем
+      const done = ()=>{
+        if(!a._priming) return;          // элемент забрали под настоящий сигнал
+        a._priming = false;
+        try{ a.pause(); a.currentTime = 0; }catch(e){}
+        a.muted = false;
+      };
       try{
+        a._priming = true;
         a.muted = true;
         const p = a.play();
-        if(p && p.then){
-          p.then(()=>{ try{ a.pause(); a.currentTime = 0; }catch(e){} a.muted = false; })
-           .catch(()=>{ a.muted = false; ok = false; });
-        } else {
-          try{ a.pause(); a.currentTime = 0; }catch(e){}
-          a.muted = false;
-        }
-      }catch(e){ a.muted = false; ok = false; }
+        if(p && p.then) p.then(done).catch(()=>{ if(a._priming){ a._priming = false; a.muted = false; } customSoundsPrimed = false; });
+        else done();
+      }catch(e){ a._priming = false; a.muted = false; customSoundsPrimed = false; }
     });
   });
-  if(ok) customSoundsPrimed = true;
 }
 
 /* Возвращает false, если своего звука нет — тогда играет встроенный. */
 function playCustomSound(key){
   const entry = ensureSoundEntry(key);
   if(!entry) return false;
-  const player = entry.pool[entry.next];
-  entry.next = (entry.next + 1) % entry.pool.length;
+  // свободный элемент, если есть; иначе — по кругу (перезапуск звучащего)
+  let idx = entry.next;
+  for(let i = 0; i < entry.pool.length; i++){
+    const j = (entry.next + i) % entry.pool.length;
+    if(entry.pool[j].paused || entry.pool[j]._priming){ idx = j; break; }
+  }
+  entry.next = (idx + 1) % entry.pool.length;
+  const player = entry.pool[idx];
+  player._priming = false;               // прогрев больше не имеет права его остановить
+  player.muted = false;
   try{ player.currentTime = 0; }catch(e){}
+  const fallback = ()=> beep(key === 'rashod' ? 550 : key === 'error' ? 220 : 880, 0, 0.09, 0.09);
   try{
     const p = player.play();
     if(p && p.catch) p.catch(()=>{
-      /* iOS не дал воспроизвести — значит элемент «протух». Заводим заново
-         и пробуем ещё раз тем же элементом. */
+      /* iOS не дал воспроизвести — элемент «протух». Пробуем ещё раз,
+         а если и это не вышло — хотя бы встроенный сигнал: он идёт через
+         другой механизм (Web Audio), который iOS блокирует реже. */
       customSoundsPrimed = false;
-      primeCustomSounds();
-      try{ player.currentTime = 0; const p2 = player.play(); if(p2 && p2.catch) p2.catch(()=>{}); }catch(e){}
+      try{
+        player.muted = false; player.currentTime = 0;
+        const p2 = player.play();
+        if(p2 && p2.catch) p2.catch(fallback);
+      }catch(e){ fallback(); }
     });
   }catch(e){ return false; }
   return true;
