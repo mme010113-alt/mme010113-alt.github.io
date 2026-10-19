@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=83">
+<link rel="stylesheet" href="css/app.css?v=85">
 </head>
 <body>
 
@@ -58,6 +58,7 @@
   <symbol id="i-qrcode" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M18 14h3v3h-3z"/><path d="M14 18h3v3h-3z"/><path d="M18 18h3v3h-3z"/></symbol>
   <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
   <symbol id="i-pause" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
   <symbol id="i-coins" viewBox="0 0 24 24"><ellipse cx="8.5" cy="6.5" rx="5.5" ry="3"/><path d="M3 6.5v4c0 1.66 2.46 3 5.5 3s5.5-1.34 5.5-3v-4"/><path d="M14 10.2c2.9-.2 6-1.4 6-3.2M9 13.5v3.5c0 1.66 2.46 3 5.5 3s5.5-1.34 5.5-3V13"/></symbol>
 </svg>
 
@@ -748,12 +749,13 @@
      человек, и выглядеть оно должно как вход в приложение. -->
 <div id="pinModalBg">
   <div class="auth-card">
+    <button type="button" class="auth-back" id="authBackBtn" onclick="openPinModal('login')" hidden><svg class="icon"><use href="#i-arrow-left"/></svg>Назад ко входу</button>
     <div class="auth-logo"><img src="icon-192.png" alt=""></div>
     <h2 id="pinTitle">Вход в склад</h2>
     <p id="pinHint">Один вход на телефон, планшет и компьютер — данные едут между ними сами.</p>
 
     <div class="auth-field" id="loginField">
-      <label for="loginInput">Логин или почта</label>
+      <label for="loginInput" id="loginLabel">E-mail или логин</label>
       <input type="text" id="loginInput" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="например, sklad">
     </div>
     <div class="auth-field">
@@ -773,12 +775,13 @@
       </div>
     </div>
 
-    <button class="btn primary auth-submit" id="pinSubmit" onclick="submitPin()"><svg class="icon"><use href="#i-check"/></svg>Войти</button>
+    <button class="btn primary auth-submit" id="pinSubmit" onclick="submitPin()"><svg class="icon"><use href="#i-check"/></svg><span id="pinSubmitText">Войти</span></button>
+    <button type="button" class="auth-skip auth-strong" id="regToggleBtn" onclick="openPinModal('register')">Создать новый склад</button>
     <button type="button" class="auth-skip" id="empToggleBtn" onclick="toggleEmployeeLogin()">Войти как партнёр</button>
-    <button type="button" class="auth-skip" onclick="skipPin()">Работать без синхронизации</button>
+    <button type="button" class="auth-skip" id="skipPinBtn" onclick="skipPin()">Работать без синхронизации</button>
     <!-- До входа в настройки не попасть, а клавиатура нужна уже здесь -->
     <button type="button" class="auth-skip" id="authKbBtn" onclick="cycleSkbMode()">Клавиатура: сама</button>
-    <div class="auth-note" id="authNote">Входите впервые? Придумайте логин и пароль — склад привяжется к ним.</div>
+    <div class="auth-note" id="authNote">Впервые здесь? «Создать новый склад» — у вас будет свой отдельный склад, его никто другой не увидит.</div>
   </div>
 </div>
 
@@ -941,19 +944,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=83"></script>
-<script src="js/db.js?v=83"></script>
-<script src="js/sync-ui.js?v=83"></script>
-<script src="js/input.js?v=83"></script>
-<script src="js/returns-scan.js?v=83"></script>
-<script src="js/sounds.js?v=83"></script>
-<script src="js/stock-history.js?v=83"></script>
-<script src="js/finance.js?v=83"></script>
-<script src="js/balance.js?v=83"></script>
-<script src="js/analytics.js?v=83"></script>
-<script src="js/settings-roles.js?v=83"></script>
-<script src="js/backup-labels.js?v=83"></script>
+<script src="sync-config.js?v=85"></script>
+<script src="js/db.js?v=85"></script>
+<script src="js/sync-ui.js?v=85"></script>
+<script src="js/input.js?v=85"></script>
+<script src="js/returns-scan.js?v=85"></script>
+<script src="js/sounds.js?v=85"></script>
+<script src="js/stock-history.js?v=85"></script>
+<script src="js/finance.js?v=85"></script>
+<script src="js/balance.js?v=85"></script>
+<script src="js/analytics.js?v=85"></script>
+<script src="js/settings-roles.js?v=85"></script>
+<script src="js/backup-labels.js?v=85"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=83"></script>
+<script src="sync.js?v=85"></script>
 </body>
 </html>
