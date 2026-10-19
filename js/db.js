@@ -422,6 +422,38 @@ async function softDelete(store, key){
 function del(store,key){ touchData(store); return new Promise((res,rej)=>{ const r = tx(store,'readwrite').delete(key); r.onsuccess=()=>res(); r.onerror=rej; }); }
 function clearStore(store){ touchData(store); return new Promise((res,rej)=>{ const r = tx(store,'readwrite').clear(); r.onsuccess=()=>res(); r.onerror=rej; }); }
 
+/* ---- несколько аккаунтов на одном устройстве ----
+   Локальная база принадлежит одному аккаунту. Сменился аккаунт (вышли и
+   вошёл другой дропшипер) — данные прежнего стираем, иначе новый увидел
+   бы чужие товары, а то и отправил их на сервер под своим именем. На
+   сервере у каждого аккаунта всё своё, после входа оно скачается заново. */
+const ACCOUNT_STORES = ['products','history','inventory','reports','adspend','orders','payouts'];
+async function countUnsent(){
+  let n = 0;
+  for(const s of ['products','history','adspend','orders','payouts']){
+    try{ n += (await getDirty(s)).length; }catch(e){}
+  }
+  const app = await get('settings','app');
+  if(app && app.dirty) n++;
+  return n;
+}
+async function wipeAccountData(){
+  for(const s of ACCOUNT_STORES) await clearStore(s);
+  // признак модели остатков — свойство самой базы на устройстве, не аккаунта
+  for(const r of await getAll('settings')) if(r.key !== 'stockModel') await del('settings', r.key);
+  try{
+    localStorage.removeItem('sklad-master-device');
+    localStorage.removeItem('sklad-membership');
+  }catch(e){}
+}
+async function localAccountUid(){
+  const r = await get('settings', 'accountUid');
+  return r ? r.value : '';
+}
+async function setLocalAccountUid(uid){
+  await putRaw('settings', {key:'accountUid', value: uid});
+}
+
 /* ============================================================
    ПОСТОЯННОЕ ХРАНИЛИЩЕ
    Вся база живёт только на этом устройстве, а браузер вправе вычистить
