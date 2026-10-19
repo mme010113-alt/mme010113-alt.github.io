@@ -105,16 +105,7 @@ window.applyRoleUI = applyRoleUI;
 
 function toggleEmployeeLogin(){
   const bg = document.getElementById('pinModalBg');
-  const on = bg.dataset.emp !== '1';
-  bg.dataset.emp = on ? '1' : '0';
-  document.getElementById('empFields').hidden = !on;
-  document.getElementById('empToggleBtn').textContent = on ? 'Обычный вход (владелец)' : 'Войти как партнёр';
-  document.getElementById('pinTitle').textContent = on ? 'Вход для партнёра' : 'Вход в склад';
-  document.getElementById('pinHint').textContent = on
-    ? 'Введите код приглашения от владельца, а логин и пароль придумайте свои.'
-    : 'Один вход на телефон, планшет и компьютер — данные едут между ними сами.';
-  const note = document.getElementById('authNote');
-  if(note) note.style.display = on ? 'none' : 'block';
+  openPinModal(bg.dataset.emp === '1' ? 'login' : 'partner');
 }
 
 /* ---- карточка «Партнёры» в настройках (владелец) ---- */
