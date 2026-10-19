@@ -11,5 +11,8 @@
 window.SYNC_CONFIG = {
   url: 'https://nqyinydzynyaulwwgqnw.supabase.co',
   key: 'sb_publishable_OZZNXOsme88Zw0ri9zJ47Q_ifXAkYsz',
-  account: 'sklad@sklad.app'
+  account: 'sklad@sklad.app',
+  /* Служебные кнопки (полная пересинхронизация, копии на сервере, «Опасная
+     зона») — только у этих аккаунтов. Остальные дропшиперы их не видят. */
+  admins: ['max_krew@sklad.app']
 };
