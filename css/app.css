@@ -697,3 +697,21 @@ header.top .mark{box-shadow:0 6px 16px -8px rgba(17,20,40,.45);}
 /* зона сканирования и подтверждение с камеры — подложки, а не карточки */
 .scanbox{background:var(--surface-2);border:1.5px dashed rgba(67,56,255,.22);}
 .cam-confirm{background:var(--surface-2);border:none;}
+
+/* переключатель складов */
+header.top h1{display:flex;align-items:center;gap:6px;min-width:0;}
+header.top h1 #companyTitle{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ws-switch{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--surface-3);color:var(--accent);padding:0;}
+.ws-switch .icon{width:15px;height:15px;}
+.ws-item{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;margin-bottom:8px;border-radius:14px;border:1px solid var(--border);background:var(--surface-3);color:var(--text);font:inherit;text-align:left;}
+.ws-item.on{border-color:var(--accent-border);background:var(--accent-soft);}
+.ws-item .ws-dot{width:10px;height:10px;border-radius:50%;background:var(--border);flex:none;}
+.ws-item.on .ws-dot{background:var(--accent);}
+.ws-item .ws-name{flex:1;min-width:0;display:flex;flex-direction:column;font-weight:600;font-size:15px;}
+.ws-item .ws-name small{font-weight:500;font-size:12px;color:var(--text-secondary);}
+.ws-item .icon{width:18px;height:18px;color:var(--accent);flex:none;}
+.ws-join{margin-top:var(--sp-3);padding:var(--sp-3);border-radius:14px;background:var(--surface-2);}
+.ws-join-title{font-weight:600;font-size:13px;margin-bottom:8px;}
+.ws-join .field-row{display:flex;gap:8px;}
+.ws-join input{flex:1;min-width:0;}
+body:not(.is-admin) .admin-only{display:none !important;}
