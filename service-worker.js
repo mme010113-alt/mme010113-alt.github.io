@@ -1,6 +1,6 @@
 /* Версию бампаем при КАЖДОЙ выкладке — иначе у установленных приложений
    останется старый кеш, и правки увидят не сразу. */
-const CACHE_NAME = 'sklad-v85';
+const CACHE_NAME = 'sklad-v86';
 
 /* Всё, что нужно приложению для полностью автономной работы: оболочка,
    иконки, сканер штрихкодов, генератор QR и шрифты. Раньше сканер, QR и
@@ -24,38 +24,31 @@ const ASSETS = [
   /* Свои скрипты и стили — с номером версии в адресе (его поднимает
      выкладка вместе с CACHE_NAME): новая страница никогда не получит из
      кеша старый кусок кода, а старая — новый. */
-  './css/app.css?v=85',
-  './sync-config.js?v=85',
-  './js/db.js?v=85',
-  './js/sync-ui.js?v=85',
-  './js/input.js?v=85',
-  './js/returns-scan.js?v=85',
-  './js/sounds.js?v=85',
-  './js/stock-history.js?v=85',
-  './js/finance.js?v=85',
-  './js/balance.js?v=85',
-  './js/analytics.js?v=85',
-  './js/settings-roles.js?v=85',
-  './js/backup-labels.js?v=85',
-  './sync.js?v=85',
+  './css/app.css?v=86',
+  './sync-config.js?v=86',
+  './js/db.js?v=86',
+  './js/sync-ui.js?v=86',
+  './js/input.js?v=86',
+  './js/returns-scan.js?v=86',
+  './js/sounds.js?v=86',
+  './js/stock-history.js?v=86',
+  './js/finance.js?v=86',
+  './js/balance.js?v=86',
+  './js/analytics.js?v=86',
+  './js/settings-roles.js?v=86',
+  './js/backup-labels.js?v=86',
+  './sync.js?v=86',
   './fonts/fonts.css',
-  './fonts/Inter-400-cyrillic.woff2',
-  './fonts/Inter-400-latin.woff2',
-  './fonts/Inter-500-cyrillic.woff2',
-  './fonts/Inter-500-latin.woff2',
-  './fonts/Inter-600-cyrillic.woff2',
-  './fonts/Inter-600-latin.woff2',
-  './fonts/Inter-700-cyrillic.woff2',
-  './fonts/Inter-700-latin.woff2',
+  './fonts/Onest-cyrillic.woff2',
+  './fonts/Onest-latin.woff2',
+  './fonts/Unbounded-cyrillic.woff2',
+  './fonts/Unbounded-latin.woff2',
   './fonts/JetBrainsMono-500-cyrillic.woff2',
   './fonts/JetBrainsMono-500-latin.woff2',
   './fonts/JetBrainsMono-600-cyrillic.woff2',
   './fonts/JetBrainsMono-600-latin.woff2',
   './fonts/JetBrainsMono-700-cyrillic.woff2',
-  './fonts/JetBrainsMono-700-latin.woff2',
-  './fonts/SpaceGrotesk-500-latin.woff2',
-  './fonts/SpaceGrotesk-600-latin.woff2',
-  './fonts/SpaceGrotesk-700-latin.woff2'
+  './fonts/JetBrainsMono-700-latin.woff2'
 ];
 
 /* Ответ, доехавший через перенаправление, помечен redirected. Такой ответ
