@@ -1,6 +1,21 @@
 /* «Склад»: База на устройстве, остатки (серверные и локальные), хранилище, запуск. */
 let db;
-const DB_NAME = 'pro_fonari_sklad';
+/* Несколько складов на одном устройстве (партнёр нескольких дропшиперов):
+   у каждого склада своя база, чтобы данные не смешивались и каждый
+   работал без сети. Базовая база (DB_BASE) принадлежит складу, записанному
+   в sklad-base-ws (так её не приходится перекачивать после обновления),
+   остальные — DB_BASE + '__ws_' + id владельца. Выбранный склад —
+   sklad-active-ws ('own' — свой склад). Сменить склад = записать новый
+   выбор и перезагрузить страницу. */
+const DB_BASE = 'pro_fonari_sklad';
+const WS_ACTIVE_KEY = 'sklad-active-ws', WS_BASE_KEY = 'sklad-base-ws';
+function lsGet(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
+function dbNameForWs(ws){
+  const base = lsGet(WS_BASE_KEY);
+  return (!ws || !base || ws === base) ? DB_BASE : DB_BASE + '__ws_' + ws;
+}
+const DB_NAME = dbNameForWs(lsGet(WS_ACTIVE_KEY));
+window.DB_NAME_IN_USE = DB_NAME;
 const DB_VERSION = 5;
 
 function openDB(){
@@ -441,9 +456,17 @@ async function wipeAccountData(){
   for(const s of ACCOUNT_STORES) await clearStore(s);
   // признак модели остатков — свойство самой базы на устройстве, не аккаунта
   for(const r of await getAll('settings')) if(r.key !== 'stockModel') await del('settings', r.key);
+  // базы других складов прежнего аккаунта — тоже долой
   try{
-    localStorage.removeItem('sklad-master-device');
-    localStorage.removeItem('sklad-membership');
+    const list = indexedDB.databases ? await indexedDB.databases() : [];
+    for(const d of list){
+      if(!d.name || d.name === DB_NAME) continue;
+      if(d.name === DB_BASE || d.name.indexOf(DB_BASE + '__ws_') === 0) indexedDB.deleteDatabase(d.name);
+    }
+  }catch(e){}
+  try{
+    ['sklad-master-device','sklad-membership','sklad-ws-list',WS_ACTIVE_KEY,WS_BASE_KEY]
+      .forEach(k=> localStorage.removeItem(k));
   }catch(e){}
 }
 async function localAccountUid(){
