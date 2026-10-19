@@ -620,3 +620,35 @@ body.kb-open nav.bottom{display:none;}
 .single-order input{width:22px;height:22px;flex:none;accent-color:var(--accent);margin:0;}
 .single-order span{display:flex;flex-direction:column;gap:2px;line-height:1.25;}
 .single-order small{color:var(--text-secondary);font-size:12px;}
+
+/* ============================================================
+   КОМПЬЮТЕР: меню слева, широкое рабочее поле, окна по центру.
+   Телефонная вёрстка выше не меняется — всё только для широких экранов.
+   ============================================================ */
+@media (min-width:1024px){
+  #app{max-width:none;margin:0;padding-left:248px;padding-bottom:0;}
+  header.top{max-width:1120px;margin:0 auto;padding:22px 32px 14px;}
+  main{width:100%;max-width:1120px;margin:0 auto;padding:4px 32px 56px;}
+
+  nav.bottom{top:16px;bottom:16px;left:16px;right:auto;width:216px;max-width:none;margin:0;
+    flex-direction:column;justify-content:flex-start;gap:4px;padding:18px 10px;}
+  nav.bottom button{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;
+    font-size:14px;font-weight:500;color:var(--text-secondary);padding:11px 14px;border-radius:12px;}
+  nav.bottom button.active{color:var(--accent-strong);font-weight:600;}
+  nav.bottom button:not(.active):hover{background:var(--accent-soft);color:var(--text);}
+
+  .modal-bg{align-items:center;padding:24px;}
+  .modal{border-radius:var(--r-lg);max-width:560px;max-height:86vh;padding:24px 24px 20px;}
+  .modal-grip{display:none;}
+  .modal-bg.top-sheet{align-items:center;}
+  .modal-bg.top-sheet .modal{border-radius:var(--r-lg);max-height:86vh;padding-top:24px;}
+
+  .toast{bottom:32px;left:calc(50% + 124px);}
+}
+
+/* окно входа: «Назад ко входу» и заметная кнопка нового склада */
+.auth-back{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;margin:0 0 6px -6px;padding:8px 10px;border:none;background:none;border-radius:10px;color:var(--text-secondary);font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+.auth-back[hidden]{display:none;}
+.auth-back .icon{width:18px;height:18px;}
+@media (hover:hover){ .auth-back:hover{background:var(--accent-soft);color:var(--accent-strong);} }
+.auth-skip.auth-strong{color:var(--accent-strong);font-weight:600;}
