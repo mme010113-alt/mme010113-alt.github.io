@@ -21,8 +21,20 @@
   let client = null;
   let channel = null;
   let syncing = false;
-  let queuedRun = false;
   let currentRun = null;
+  /* Очередь: обмен и раздача с главного телефона никогда не идут
+     одновременно. Раньше «занято?» проверялось и занималось не за один шаг
+     (между ними был await), и два запроса могли запустить два обмена разом. */
+  let lockTail = Promise.resolve();
+  function acquireLock(){
+    let release;
+    const prev = lockTail;
+    lockTail = new Promise(r=>{ release = r; });
+    return prev.then(()=> release);
+  }
+  /* Обмен, который уже стоит в очереди, но ещё не начался: все, кто просит
+     обмен в это время, ждут именно его (он и так заберёт их правки). */
+  let pendingSync = null;
 
   const listeners = [];
   function onStatus(fn){ listeners.push(fn); }
@@ -133,6 +145,7 @@
     stopRealtime();
     membership = null;
     inviteCode = null;
+    wsList = [];
     writeCachedMembership(null);
     if(client) { try{ await client.auth.signOut(); }catch(e){} }
     emit('signed-out');
@@ -176,6 +189,15 @@
   let membership = readCachedMembership();
   let inviteCode = null;   // код-приглашения владельца (для показа в настройках)
 
+  /* Складов у человека может быть несколько: свой (если он владелец) и
+     склады дропшиперов, к которым он подключён партнёром. Список — для
+     переключателя; выбранный склад хранится на устройстве (sklad-active-ws). */
+  const WS_LIST_KEY = 'sklad-ws-list';
+  function readWsList(){
+    try{ const l = JSON.parse(localStorage.getItem(WS_LIST_KEY) || 'null'); return Array.isArray(l) ? l : []; }catch(e){ return []; }
+  }
+  let wsList = readWsList();   // [{id:'own'|owner_id, name, role}]
+
   async function resolveMembership(){
     if(!ready()) return membership;              // без связи держимся кэша
     const user = await currentUser();
@@ -184,13 +206,64 @@
       const {data, error} = await client
         .from('workspace_members')
         .select('owner_id, role, name')
-        .eq('member_id', user.id)
-        .limit(1);
+        .eq('member_id', user.id);
       if(error) throw error;
-      membership = (data && data.length) ? data[0] : null;   // достоверный ответ
+      const rows = data || [];
+
+      // названия складов — из настроек их владельцев (партнёру они видны)
+      const names = {};
+      if(rows.length){
+        const r = await client.from('app_settings').select('user_id,value')
+          .eq('key','app').in('user_id', rows.map(x=> x.owner_id));
+        (r.data || []).forEach(s=>{ if(s.value && s.value.company) names[s.user_id] = s.value.company; });
+      }
+      /* Свой склад показываем, если человек не партнёр совсем или у него
+         есть свои товары (дропшипер, которого заодно подключили партнёром). */
+      let hasOwn = !rows.length;
+      if(!hasOwn){
+        const own = await client.from('products').select('sku').eq('user_id', user.id).limit(1);
+        hasOwn = !!(own.data && own.data.length);
+      }
+      const list = [];
+      if(hasOwn) list.push({id:'own', name:'Мой склад', role:'owner'});
+      rows.forEach((x, i)=> list.push({id:x.owner_id, name: names[x.owner_id] || ('Склад ' + (i + 1)), role: x.role || 'employee', member: x}));
+      wsList = list.map(w=> ({id:w.id, name:w.name, role:w.role}));
+      try{ localStorage.setItem(WS_LIST_KEY, JSON.stringify(wsList)); }catch(e){}
+
+      // какой склад открыт: выбранный ранее, если он ещё доступен, иначе первый
+      let active = '';
+      try{ active = localStorage.getItem('sklad-active-ws') || ''; }catch(e){}
+      if(!list.some(w=> w.id === active)) active = list[0].id;
+      try{
+        if(!localStorage.getItem('sklad-base-ws')) localStorage.setItem('sklad-base-ws', active);  // текущая база — этого склада
+        localStorage.setItem('sklad-active-ws', active);
+      }catch(e){}
+      const cur = list.find(w=> w.id === active);
+      membership = cur.member || null;           // достоверный ответ
       writeCachedMembership(membership);
+      // открыта база другого склада (выбор сменился) — перезапуск на нужную
+      if(typeof window.dbNameForWs === 'function' && window.dbNameForWs(active) !== window.DB_NAME_IN_USE){
+        location.reload();
+      }
     }catch(e){ /* таблицы нет / нет связи — оставляем прежнее (кэш) */ }
     return membership;
+  }
+  /* Хозяин сервиса (список в sync-config.js) — ему видны служебные кнопки. */
+  async function isAdmin(){
+    if(!init()) return false;
+    try{
+      const {data} = await client.auth.getSession();
+      const email = String(data && data.session && data.session.user && data.session.user.email || '').toLowerCase();
+      return !!email && (CFG.admins || []).map(x=> String(x).toLowerCase()).includes(email);
+    }catch(e){ return false; }
+  }
+  function workspaces(){ return wsList.slice(); }
+  function activeWorkspace(){ try{ return localStorage.getItem('sklad-active-ws') || ''; }catch(e){ return ''; } }
+  function switchWorkspace(id){
+    if(!wsList.some(w=> w.id === id)) return false;
+    try{ localStorage.setItem('sklad-active-ws', id); }catch(e){}
+    location.reload();
+    return true;
   }
 
   function role(){ return membership ? (membership.role || 'employee') : 'owner'; }
@@ -230,6 +303,8 @@
       p_name: String(name || '').trim()
     });
     if(error) return {ok:false, error: error.message};
+    // только что подключённый склад сразу становится открытым
+    if(data){ try{ localStorage.setItem('sklad-active-ws', data); }catch(e){} }
     await resolveMembership();
     return {ok:true, ownerId: data};
   }
@@ -237,10 +312,12 @@
   /* Владелец: список партнёров и удаление. */
   async function listMembers(){
     if(!ready() || membership) return [];
-    if(!(await currentUser())) return [];   // до входа спрашивать нечего
+    const me = await currentUser();
+    if(!me) return [];   // до входа спрашивать нечего
     const {data, error} = await client
       .from('workspace_members')
       .select('member_id, name, role, created_at')
+      .eq('owner_id', me.id)
       .order('created_at', {ascending:true});
     return error ? [] : (data || []);
   }
@@ -512,7 +589,7 @@
   // ------------------------------------------------------------------
   // приём чужих изменений
   // ------------------------------------------------------------------
-  async function pullStore(storeName, since){
+  async function pullStore(storeName, since, wsOwner){
     const spec = MAP[storeName];
     /* Сервер отдаёт за раз не больше 1000 строк, а одним запросом с лимитом
        больше он молча обрежет — поэтому листаем страницами, пока не кончатся. */
@@ -523,6 +600,7 @@
       const page = await client
         .from(spec.table)
         .select('*')
+        .eq('user_id', wsOwner)            // только открытый склад: партнёру видны и другие
         .gt('updated_at', since)
         .order('updated_at', {ascending:true})
         .order(keyCol, {ascending:true})
@@ -676,7 +754,7 @@
     const user = await currentUser();
     if(!user) return {ok:false, error:'не выполнен вход'};
 
-    if(currentRun){ try{ await currentRun; }catch(e){} }
+    const release = await acquireLock();
     let resolveRun;
     currentRun = new Promise(r=>{ resolveRun = r; });
     syncing = true;
@@ -739,6 +817,7 @@
       syncing = false;
       currentRun = null;
       if(resolveRun) resolveRun();
+      release();
     }
   }
 
@@ -750,7 +829,7 @@
     if(!ready() || !membership) return {ok:false, error:'только для партнёра'};
     if(!navigator.onLine) return {ok:false, error:'нужна сеть'};
     const newUid = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(16).slice(2)));
-    const {error} = await client.rpc('partner_mark_damaged', {p_return_uid: returnUid, p_new_uid: newUid});
+    const {error} = await client.rpc('partner_mark_damaged', {p_return_uid: returnUid, p_new_uid: newUid, p_owner: membership.owner_id});
     if(error) return {ok:false, error:error.message};
     await syncNow('партнёр: повреждённый');
     return {ok:true};
@@ -758,7 +837,7 @@
   async function partnerRestoreDamaged(uid){
     if(!ready() || !membership) return {ok:false, error:'только для партнёра'};
     if(!navigator.onLine) return {ok:false, error:'нужна сеть'};
-    const {error} = await client.rpc('partner_restore_damaged', {p_uid: uid});
+    const {error} = await client.rpc('partner_restore_damaged', {p_uid: uid, p_owner: membership.owner_id});
     if(error) return {ok:false, error:error.message};
     await syncNow('партнёр: вернул в возвраты');
     return {ok:true};
@@ -824,23 +903,27 @@
      вызывающий думал, что обмен прошёл, хотя приём не выполнялся.
      Теперь параллельный вызов дожидается текущего и при необходимости
      повторяет обмен. */
-  async function syncNow(reason){
-    if(!ready()){ return {ok:false, error:'нет настроек'}; }
-    if(currentRun){
-      queuedRun = true;
-      try{ await currentRun; }catch(e){}
-      if(queuedRun){ queuedRun = false; return runSync(reason); }
-      return {ok:true, sent:0, received:0, coalesced:true};
-    }
-    return runSync(reason);
+  /* Ответ приходит, только когда обмен, который учтёт ЭТОТ запрос, реально
+     закончился. Раньше второй из ждущих получал «готово» сразу, хотя
+     повторный обмен ещё шёл, — «Обновить» отвечал раньше, чем данные
+     доезжали (так, например, «застревали» чужие удаления). */
+  function syncNow(reason){
+    if(!ready()) return Promise.resolve({ok:false, error:'нет настроек'});
+    if(pendingSync) return pendingSync;
+    const p = runSync(reason, ()=>{ if(pendingSync === p) pendingSync = null; });
+    pendingSync = p;
+    p.then(()=>{ if(pendingSync === p) pendingSync = null; }, ()=>{ if(pendingSync === p) pendingSync = null; });
+    return p;
   }
 
-  async function runSync(reason){
+  async function runSync(reason, onStart){
     if(!navigator.onLine){ emit('offline'); return {ok:false, error:'нет сети'}; }
 
     const user = await currentUser();
     if(!user){ emit('signed-out'); return {ok:false, error:'не выполнен вход'}; }
 
+    const release = await acquireLock();
+    if(onStart) onStart();          // с этой секунды новые запросы встают в следующий обмен
     let resolveRun;
     currentRun = new Promise(r=>{ resolveRun = r; });
     syncing = true;
@@ -895,7 +978,7 @@
       let newCursor = saved;
       const skus = new Set();
       for(const s of pullList){
-        const r = await guard(s, ()=> pullStore(s, since))
+        const r = await guard(s, ()=> pullStore(s, since, wsOwner))
               || {applied:0, maxUpdated:since, touchedSkus:[]};
         received += r.applied;
         newCursor = Math.max(newCursor, r.maxUpdated);
@@ -930,6 +1013,7 @@
       syncing = false;
       currentRun = null;
       if(resolveRun) resolveRun();
+      release();
     }
   }
 
@@ -987,7 +1071,7 @@
     isConfigured: ()=> Boolean(CFG.url && CFG.key),
     // роли и кабинет сотрудника
     resolveMembership, role, memberName, myMemberId, workspaceOwnerId,
-    joinWorkspace, listMembers, removeMember,
+    joinWorkspace, listMembers, removeMember, workspaces, activeWorkspace, switchWorkspace, isAdmin,
     ensureInviteCode, rotateInviteCode, inviteCode: currentInviteCode
   };
 })();
