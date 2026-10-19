@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=87">
+<link rel="stylesheet" href="css/app.css?v=88">
 </head>
 <body>
 
@@ -58,6 +58,7 @@
   <symbol id="i-qrcode" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M18 14h3v3h-3z"/><path d="M14 18h3v3h-3z"/><path d="M18 18h3v3h-3z"/></symbol>
   <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
   <symbol id="i-pause" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></symbol>
   <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
   <symbol id="i-coins" viewBox="0 0 24 24"><ellipse cx="8.5" cy="6.5" rx="5.5" ry="3"/><path d="M3 6.5v4c0 1.66 2.46 3 5.5 3s5.5-1.34 5.5-3v-4"/><path d="M14 10.2c2.9-.2 6-1.4 6-3.2M9 13.5v3.5c0 1.66 2.46 3 5.5 3s5.5-1.34 5.5-3V13"/></symbol>
 </svg>
@@ -66,10 +67,10 @@
 
   <div class="sticky-chrome">
     <header class="top">
-      <div class="brand">
+      <div class="brand" id="brandBtn">
         <div class="mark"><img id="headerLogoImg" src="icon-192.png" alt="Логотип" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;"></div>
         <div class="name">
-          <h1 id="companyTitle">Склад</h1>
+          <h1><span id="companyTitle">Склад</span><button type="button" class="ws-switch" id="wsSwitchBtn" onclick="openWsSwitcher()" aria-label="Сменить склад" hidden><svg class="icon"><use href="#i-swap"/></svg></button></h1>
           <div class="sub" id="syncLine">Данные на этом устройстве</div>
         </div>
       </div>
@@ -389,8 +390,8 @@
           <button class="btn ghost" onclick="syncNowFromSettings()"><svg class="icon"><use href="#i-download"/></svg>Обновить</button>
           <button class="btn ghost" onclick="openPinModal('change')"><svg class="icon"><use href="#i-gear"/></svg>Сменить пароль</button>
         </div>
-        <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="fullResyncFromSettings()"><svg class="icon"><use href="#i-inbox"/></svg>Полная пересинхронизация</button>
-        <div class="t-caption" style="margin:6px 0 0;color:var(--text-tertiary);">Если остатки на этом телефоне не совпадают с другим устройством — нажмите сюда: программа заново скачает всю историю операций и пересчитает остатки. Обычная «Обновить» подтягивает только новое, эта — перепроверяет всё.</div>
+        <button class="btn ghost admin-only" style="width:100%;margin-top:8px;" onclick="fullResyncFromSettings()"><svg class="icon"><use href="#i-inbox"/></svg>Полная пересинхронизация</button>
+        <div class="t-caption admin-only" style="margin:6px 0 0;color:var(--text-tertiary);">Если остатки на этом телефоне не совпадают с другим устройством — нажмите сюда: программа заново скачает всю историю операций и пересчитает остатки. Обычная «Обновить» подтягивает только новое, эта — перепроверяет всё.</div>
         <button class="btn danger" style="width:100%;margin-top:8px;" onclick="syncSignOut()"><svg class="icon"><use href="#i-x"/></svg>Выйти из аккаунта</button>
         <div class="t-caption" style="margin-top:var(--sp-3);color:var(--text-tertiary);">Данные хранятся и на устройстве, и на сервере. Без сети приложение работает как обычно, а накопленное уходит при первой связи.</div>
       </div>
@@ -482,7 +483,7 @@
         <div class="t-caption" id="masterPublishCap" style="margin:6px 0 0;color:var(--text-tertiary);display:none;">Сервер станет точной копией этого телефона (лишнее на сервере удалится), а остальные телефоны при следующей связи сотрут свои данные и скачают эти. Вызывается сама после импорта файла.</div>
       </div>
 
-      <div class="card" id="snapshotsCard">
+      <div class="card admin-only" id="snapshotsCard">
         <div class="card-head">
           <span class="t-eyebrow">Копии на сервере</span>
           <button class="btn ghost sm" style="width:auto;" onclick="snapshotNow()"><svg class="icon"><use href="#i-plus"/></svg>Сделать сейчас</button>
@@ -491,7 +492,7 @@
         <div id="snapshotsList"></div>
         <div class="alert" id="storageStatus"></div>
       </div>
-      <div class="card">
+      <div class="card admin-only">
         <div class="card-head"><span class="t-eyebrow" style="color:var(--danger);">Опасная зона</span></div>
         <button class="btn danger" style="width:100%" onclick="wipeAll()"><svg class="icon"><use href="#i-trash"/></svg>Очистить все данные</button>
       </div>
@@ -785,6 +786,26 @@
   </div>
 </div>
 
+<!-- Склады: партнёр может работать на нескольких дропшиперов, у каждого
+     свой склад; здесь выбирают, какой открыт, и подключают новый по коду. -->
+<div class="modal-bg" id="wsModalBg" data-close="closeWsSwitcher">
+  <div class="modal">
+    <div class="modal-grip"></div>
+    <h3>Склады</h3>
+    <p class="t-small" style="margin:0 0 var(--sp-3);">Данные каждого склада хранятся отдельно и между собой не смешиваются.</p>
+    <div id="wsList"></div>
+    <div id="wsJoinBox" class="ws-join">
+      <div class="ws-join-title">Подключить ещё склад</div>
+      <div class="field-row">
+        <input type="text" id="wsJoinCode" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="Код от дропшипера">
+        <button class="btn primary sm" style="width:auto;" onclick="joinAnotherWorkspace()"><svg class="icon"><use href="#i-plus"/></svg>Подключить</button>
+      </div>
+      <div class="field-error" id="wsJoinError"></div>
+    </div>
+    <button class="btn ghost" style="margin-top:var(--sp-3);" onclick="closeWsSwitcher()">Закрыть</button>
+  </div>
+</div>
+
 <!-- Количество проставляется здесь, а не в скачанном файле: введённое в
      готовый HTML нигде не сохранится, поставщик получит пустые графы -->
 <div class="modal-bg" id="orderQtyModalBg" data-close="closeOrderQty">
@@ -944,19 +965,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=87"></script>
-<script src="js/db.js?v=87"></script>
-<script src="js/sync-ui.js?v=87"></script>
-<script src="js/input.js?v=87"></script>
-<script src="js/returns-scan.js?v=87"></script>
-<script src="js/sounds.js?v=87"></script>
-<script src="js/stock-history.js?v=87"></script>
-<script src="js/finance.js?v=87"></script>
-<script src="js/balance.js?v=87"></script>
-<script src="js/analytics.js?v=87"></script>
-<script src="js/settings-roles.js?v=87"></script>
-<script src="js/backup-labels.js?v=87"></script>
+<script src="sync-config.js?v=88"></script>
+<script src="js/db.js?v=88"></script>
+<script src="js/sync-ui.js?v=88"></script>
+<script src="js/input.js?v=88"></script>
+<script src="js/returns-scan.js?v=88"></script>
+<script src="js/sounds.js?v=88"></script>
+<script src="js/stock-history.js?v=88"></script>
+<script src="js/finance.js?v=88"></script>
+<script src="js/balance.js?v=88"></script>
+<script src="js/analytics.js?v=88"></script>
+<script src="js/settings-roles.js?v=88"></script>
+<script src="js/backup-labels.js?v=88"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=87"></script>
+<script src="sync.js?v=88"></script>
 </body>
 </html>
