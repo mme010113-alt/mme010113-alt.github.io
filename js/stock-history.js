@@ -1123,7 +1123,7 @@ function pluralNakladnaya(n){
   return 'накладных';
 }
 
-const CAT_PALETTE = ['#4A7DFF','#FF6B78','#8C7EF2','#FFA35C','#2FBFAE','#FFC94D'];
+const CAT_PALETTE = ['#4338FF','#FF4D6D','#A07BFF','#FF9F43','#14B8A6','#F5C518'];
 function pluralProdazha(n){
   const m = n%100;
   if(m>=11 && m<=14) return 'продаж';
@@ -1201,7 +1201,7 @@ async function renderStatsHero(){
   const maxAbs = Math.max(...buckets.map(b=>Math.abs(b.netProfit)), 1);
   document.getElementById('heroBars').innerHTML = buckets.map((b,i)=>{
     const h = Math.max(4, Math.round(Math.abs(b.netProfit)/maxAbs*64));
-    const color = b.netProfit < 0 ? '#FF6B78' : CAT_PALETTE[i % CAT_PALETTE.length];
+    const color = b.netProfit < 0 ? '#FF4D6D' : CAT_PALETTE[i % CAT_PALETTE.length];
     const barCls = b===current ? 'hero-bar current' : 'hero-bar';
     const lblCls = b===current ? 'hero-bar-lbl current-lbl' : 'hero-bar-lbl';
     return `<div class="hero-bar-col"><div class="${barCls}" style="height:${h}px;background:${color};"></div><div class="${lblCls}">${b.label}</div></div>`;
@@ -1229,15 +1229,15 @@ async function renderStats(){
   for(const sku in salesBySku){ if(salesBySku[sku]>bestQty){bestQty=salesBySku[sku]; const p=products.find(x=>x.sku===sku); bestName=(p?p.name:sku)+' ('+bestQty+')';} }
 
   document.getElementById('statGrid').innerHTML = `
-    <div class="stat-tile" style="--tile-color:#E8598A" title="Себестоимость товаров на складе"><div class="val">${Math.round(potential.cost)} ₽</div><div class="lbl">СТС</div></div>
-    <div class="stat-tile" style="--tile-color:#4A7DFF" title="Потенциальная чистая прибыль товаров на складе"><div class="val">${Math.round(potential.netProfit)} ₽</div><div class="lbl">ПЧП</div></div>
-    <div class="stat-tile" style="--tile-color:#8C7EF2"><div class="val">${soldQty}</div><div class="lbl">Продано, шт</div></div>
-    <div class="stat-tile" style="--tile-color:#2BBE85"><div class="val">${receivedQty}</div><div class="lbl">Принято, шт</div></div>
-    <div class="stat-tile" style="--tile-color:#FFA35C"><div class="val">${totalStock}</div><div class="lbl">Остаток склада</div></div>
-    <div class="stat-tile" style="--tile-color:#2FBFAE"><div class="val small">${escapeHtml(bestName)}</div><div class="lbl">Топ товар дня</div></div>
-    <div class="stat-tile" style="--tile-color:#E86F2E" title="Начислено партнёрам за сегодня"><div class="val">${Math.round(partnerToday)} ₽</div><div class="lbl">Партнёрам сегодня</div></div>
-    <div class="stat-tile" style="--tile-color:#E86F2E" title="Начислено партнёрам за 30 дней"><div class="val">${Math.round(partnerMonth)} ₽</div><div class="lbl">Партнёрам за месяц</div></div>
-    <div class="stat-tile wide" style="--tile-color:#FFC94D"><span class="lbl">Потенциальная выручка склада</span><span class="val">${Math.round(potential.revenue)} ₽</span></div>
+    <div class="stat-tile" style="--tile-color:#F0508C" title="Себестоимость товаров на складе"><div class="val">${Math.round(potential.cost)} ₽</div><div class="lbl">СТС</div></div>
+    <div class="stat-tile" style="--tile-color:#4338FF" title="Потенциальная чистая прибыль товаров на складе"><div class="val">${Math.round(potential.netProfit)} ₽</div><div class="lbl">ПЧП</div></div>
+    <div class="stat-tile" style="--tile-color:#A07BFF"><div class="val">${soldQty}</div><div class="lbl">Продано, шт</div></div>
+    <div class="stat-tile" style="--tile-color:#10B981"><div class="val">${receivedQty}</div><div class="lbl">Принято, шт</div></div>
+    <div class="stat-tile" style="--tile-color:#FF9F43"><div class="val">${totalStock}</div><div class="lbl">Остаток склада</div></div>
+    <div class="stat-tile" style="--tile-color:#14B8A6"><div class="val small">${escapeHtml(bestName)}</div><div class="lbl">Топ товар дня</div></div>
+    <div class="stat-tile" style="--tile-color:#F2683C" title="Начислено партнёрам за сегодня"><div class="val">${Math.round(partnerToday)} ₽</div><div class="lbl">Партнёрам сегодня</div></div>
+    <div class="stat-tile" style="--tile-color:#F2683C" title="Начислено партнёрам за 30 дней"><div class="val">${Math.round(partnerMonth)} ₽</div><div class="lbl">Партнёрам за месяц</div></div>
+    <div class="stat-tile wide" style="--tile-color:#F5C518"><span class="lbl">Потенциальная выручка склада</span><span class="val">${Math.round(potential.revenue)} ₽</span></div>
   `;
 }
 
