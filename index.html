@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=93">
+<link rel="stylesheet" href="css/app.css?v=94">
 </head>
 <body>
 
@@ -72,7 +72,7 @@
         <div class="name">
           <h1><span id="companyTitle">Склад</span><button type="button" class="ws-switch" id="wsSwitchBtn" onclick="openWsSwitcher()" aria-label="Сменить склад" hidden><svg class="icon"><use href="#i-swap"/></svg></button></h1>
           <!-- одна строка состояния: точка синхронизации, время, число товаров -->
-          <div class="sub" id="syncSub"><span class="sync-dot"></span><span id="syncLine">Данные на этом устройстве</span><span class="sub-sep">·</span><span id="productCountPill">0 товаров</span></div>
+          <div class="sub" id="syncSub"><span class="sync-dot"></span><span id="syncLine">На устройстве</span><span class="sub-sep">·</span><span id="productCountPill">0 товаров</span></div>
         </div>
       </div>
       <button class="icon-btn-lg head-btn" onclick="openSettings()" aria-label="Настройки"><svg class="icon"><use href="#i-gear"/></svg></button>
@@ -193,16 +193,7 @@
         </div>
         <div id="reorderList"></div>
       </div>
-          <!-- быстрые переходы — плитки-«сервисы», как у маркетплейсов -->
-      <div class="quick-tiles">
-        <button class="quick-tile qt-stock" onclick="goSection('stock')"><span class="qt-ic"><svg class="icon"><use href="#i-box"/></svg></span>Склад</button>
-        <button class="quick-tile qt-ret" onclick="goSection('returns')"><span class="qt-ic"><svg class="icon"><use href="#i-inbox"/></svg></span>Возвраты</button>
-        <button class="quick-tile qt-hist" onclick="goSection('history')"><span class="qt-ic"><svg class="icon"><use href="#i-clock"/></svg></span>История</button>
-        <button class="quick-tile qt-fin" onclick="goSection('finance')"><span class="qt-ic"><svg class="icon"><use href="#i-wallet"/></svg></span>Расходы</button>
-        <button class="quick-tile qt-in full-only" onclick="goSection('balance')"><span class="qt-ic"><svg class="icon"><use href="#i-coins"/></svg></span>Баланс</button>
-        <button class="quick-tile qt-out" onclick="openSettings()"><span class="qt-ic"><svg class="icon"><use href="#i-gear"/></svg></span>Настройки</button>
-      </div>
-    </section>
+        </section>
 
     <section id="sec-stock">
       <div class="page-head">
@@ -974,19 +965,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=93"></script>
-<script src="js/db.js?v=93"></script>
-<script src="js/sync-ui.js?v=93"></script>
-<script src="js/input.js?v=93"></script>
-<script src="js/returns-scan.js?v=93"></script>
-<script src="js/sounds.js?v=93"></script>
-<script src="js/stock-history.js?v=93"></script>
-<script src="js/finance.js?v=93"></script>
-<script src="js/balance.js?v=93"></script>
-<script src="js/analytics.js?v=93"></script>
-<script src="js/settings-roles.js?v=93"></script>
-<script src="js/backup-labels.js?v=93"></script>
+<script src="sync-config.js?v=94"></script>
+<script src="js/db.js?v=94"></script>
+<script src="js/sync-ui.js?v=94"></script>
+<script src="js/input.js?v=94"></script>
+<script src="js/returns-scan.js?v=94"></script>
+<script src="js/sounds.js?v=94"></script>
+<script src="js/stock-history.js?v=94"></script>
+<script src="js/finance.js?v=94"></script>
+<script src="js/balance.js?v=94"></script>
+<script src="js/analytics.js?v=94"></script>
+<script src="js/settings-roles.js?v=94"></script>
+<script src="js/backup-labels.js?v=94"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=93"></script>
+<script src="sync.js?v=94"></script>
 </body>
 </html>
