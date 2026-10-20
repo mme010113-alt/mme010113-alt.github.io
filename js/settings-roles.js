@@ -88,6 +88,9 @@ async function applyRoleUI(){
 
   if(!emp) renderMembersCard();
   renderWsSwitch();
+  // «Баланс» и начисления — только в складах из fullWorkspaces
+  // без входа (только это устройство) признак не трогаем — помним прежний
+  try{ const ws = await Sync.workspaceOwnerId(); if(ws) setFullWorkspace((window.SYNC_CONFIG && SYNC_CONFIG.fullWorkspaces || []).includes(ws)); }catch(e){}
   // служебные кнопки — только хозяину сервиса (и только в своём складе)
   const admin = !emp && window.Sync && Sync.isAdmin ? await Sync.isAdmin() : false;
   document.body.classList.toggle('is-admin', admin);
@@ -341,3 +344,15 @@ async function joinAnotherWorkspace(){
   if(!r.ok){ err.textContent = r.error || 'Не удалось подключить'; err.classList.add('show'); return; }
   toast('Склад подключён');   // joinWorkspace сам открывает новый склад (перезапуск)
 }
+
+/* ---- полный кабинет («Баланс», ставки, начисления) ----
+   Только у склада хозяина сервиса и его партнёров. Признак помним на
+   устройстве, чтобы при запуске без сети не мелькал лишний раздел. */
+function isFullWorkspace(){ try{ return localStorage.getItem('sklad-full-ws') === '1'; }catch(e){ return false; } }
+function setFullWorkspace(on){
+  try{ localStorage.setItem('sklad-full-ws', on ? '1' : '0'); }catch(e){}
+  document.body.classList.toggle('is-full', !!on);
+  const active = document.querySelector('main section.active');
+  if(!on && active && active.id === 'sec-balance') showSection('stock', document.querySelector('nav.bottom button[onclick*="\'stock\'"]'));
+}
+document.body.classList.toggle('is-full', isFullWorkspace());
