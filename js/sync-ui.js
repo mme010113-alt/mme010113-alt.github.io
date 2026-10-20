@@ -9,24 +9,25 @@ function setSyncLine(text){
   if(el) el.textContent = text;
   // цвет точки в шапке: идёт обмен / ошибка / без связи / всё в порядке
   const sub = document.getElementById('syncSub');
-  if(sub) sub.dataset.state = /Синхронизация…|Проверяем/.test(text) ? 'busy'
+  if(sub) sub.dataset.state = /Обмен…|Проверяем/.test(text) ? 'busy'
     : /ошиб|не удал|не вышло/i.test(text) ? 'error'
-    : /нет сети|без сети|офлайн|Только это устройство|не выполнен|на этом устройстве/i.test(text) ? 'off' : 'ok';
+    : /нет сети|без сети|офлайн|без входа|не выполнен|на устройстве/i.test(text) ? 'off' : 'ok';
 }
 
 function describeSync(state, detail){
   detail = detail || {};
-  /* Коротко: строка живёт в шапке рядом с кнопками и обрезается. */
-  if(state === 'syncing') return 'Синхронизация…';
-  if(state === 'offline') return (detail.pending ? 'Нет сети · ждут: '+detail.pending : 'Нет сети');
-  if(state === 'signed-out') return 'Только это устройство';
-  if(state === 'error') return 'Обмен не удался';
+  /* Очень коротко: строка в шапке делит место с числом товаров и не
+     должна наезжать на кнопку настроек даже при «1 000 товаров». */
+  if(state === 'syncing') return 'Обмен…';
+  if(state === 'offline') return (detail.pending ? 'Нет сети · ' + detail.pending : 'Нет сети');
+  if(state === 'signed-out') return 'Без входа';
+  if(state === 'error') return 'Не удалось';
   if(state === 'idle'){
-    if(detail.pending) return 'Ждут отправки: ' + detail.pending;
+    if(detail.pending) return 'Ждут: ' + detail.pending;
     const t = detail.at ? new Date(detail.at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : '';
-    return t ? ('Синхронизировано в ' + t) : 'Синхронизировано';
+    return t ? ('Синхр. ' + t) : 'Синхр.';
   }
-  return 'Данные на этом устройстве';
+  return 'На устройстве';
 }
 
 /* Вызывается синхронизацией, когда с сервера прилетели чужие изменения. */
@@ -291,7 +292,7 @@ async function updateProductCountPill(){
   const all = await getAllLive('products');
   const n = all.length;
   const word = n%10===1 && n%100!==11 ? 'товар' : (n%10>=2 && n%10<=4 && !(n%100>=12&&n%100<=14) ? 'товара' : 'товаров');
-  document.getElementById('productCountPill').textContent = n+' '+word;
+  document.getElementById('productCountPill').textContent = n.toLocaleString('ru-RU')+' '+word;
 }
 
 function showSection(name, btn){
