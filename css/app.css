@@ -869,3 +869,4 @@ header.top .sub #productCountPill{flex:none;font-weight:600;color:var(--text);}
 #syncSub[data-state="off"] .sync-dot{background:#A1A7B8;}
 @keyframes syncPulse{50%{opacity:.35;}}
 .status-pill{display:none;}
+.auth-forgot{margin:6px 0 4px;padding:12px 14px;border-radius:14px;background:var(--accent-soft);color:var(--text);font-size:13.5px;line-height:1.45;text-align:left;}
