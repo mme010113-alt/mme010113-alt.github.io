@@ -257,6 +257,18 @@
       return !!email && (CFG.admins || []).map(x=> String(x).toLowerCase()).includes(email);
     }catch(e){ return false; }
   }
+  /* Главный аккаунт: список всех аккаунтов и смена забытого пароля
+     (серверные функции admin_* сами проверяют, что зовёт Max_Krew). */
+  async function adminListAccounts(){
+    if(!ready()) return {ok:false, error:'нет связи'};
+    const {data, error} = await client.rpc('admin_list_accounts');
+    return error ? {ok:false, error:error.message} : {ok:true, rows: Array.isArray(data) ? data : []};
+  }
+  async function adminSetPassword(userId, password){
+    if(!ready()) return {ok:false, error:'нет связи'};
+    const {error} = await client.rpc('admin_set_password', {p_user:userId, p_password:password});
+    return error ? {ok:false, error:error.message} : {ok:true};
+  }
   function workspaces(){ return wsList.slice(); }
   function activeWorkspace(){ try{ return localStorage.getItem('sklad-active-ws') || ''; }catch(e){ return ''; } }
   function switchWorkspace(id){
@@ -1071,7 +1083,7 @@
     isConfigured: ()=> Boolean(CFG.url && CFG.key),
     // роли и кабинет сотрудника
     resolveMembership, role, memberName, myMemberId, workspaceOwnerId,
-    joinWorkspace, listMembers, removeMember, workspaces, activeWorkspace, switchWorkspace, isAdmin,
+    joinWorkspace, listMembers, removeMember, workspaces, activeWorkspace, switchWorkspace, isAdmin, adminListAccounts, adminSetPassword,
     ensureInviteCode, rotateInviteCode, inviteCode: currentInviteCode
   };
 })();
