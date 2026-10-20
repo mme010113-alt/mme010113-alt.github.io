@@ -7,6 +7,11 @@
 function setSyncLine(text){
   const el = document.getElementById('syncLine');
   if(el) el.textContent = text;
+  // цвет точки в шапке: идёт обмен / ошибка / без связи / всё в порядке
+  const sub = document.getElementById('syncSub');
+  if(sub) sub.dataset.state = /Синхронизация…|Проверяем/.test(text) ? 'busy'
+    : /ошиб|не удал|не вышло/i.test(text) ? 'error'
+    : /нет сети|без сети|офлайн|Только это устройство|не выполнен|на этом устройстве/i.test(text) ? 'off' : 'ok';
 }
 
 function describeSync(state, detail){
