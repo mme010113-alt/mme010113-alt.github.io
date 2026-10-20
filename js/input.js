@@ -226,7 +226,8 @@ var hwScannerSeen = false;
 function focusForScanner(el){
   if(!el) return;
   if(touchQty && !hwScannerSeen) return;
-  try{ el.focus(); }catch(e){}
+  // курсор в поле — но страницу не сдвигаем (иначе заголовок уезжал под шапку)
+  try{ el.focus({preventScroll:true}); }catch(e){ try{ el.focus(); }catch(e2){} }
 }
 
 /* ================= своя экранная клавиатура =================
