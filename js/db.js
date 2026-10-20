@@ -465,7 +465,7 @@ async function wipeAccountData(){
     }
   }catch(e){}
   try{
-    ['sklad-master-device','sklad-membership','sklad-ws-list',WS_ACTIVE_KEY,WS_BASE_KEY]
+    ['sklad-master-device','sklad-membership','sklad-ws-list','sklad-full-ws',WS_ACTIVE_KEY,WS_BASE_KEY]
       .forEach(k=> localStorage.removeItem(k));
   }catch(e){}
 }
