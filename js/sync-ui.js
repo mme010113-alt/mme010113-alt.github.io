@@ -100,12 +100,17 @@ function openPinModal(mode){
   bg.dataset.emp = mode === 'partner' ? '1' : '0';
   const ef = document.getElementById('empFields'); if(ef) ef.hidden = mode !== 'partner';
 
+  const fh = document.getElementById('forgotHint'); if(fh) fh.hidden = true;
   bg.dataset.mode = mode;
   bg.classList.add('show');
   setTimeout(()=>{
     const focusId = (isChange || document.getElementById('loginInput').value) ? 'pinInput' : 'loginInput';
     document.getElementById(focusId).focus();
   }, 60);
+}
+function showForgotHint(){
+  const el = document.getElementById('forgotHint');
+  if(el) el.hidden = !el.hidden;
 }
 function closePinModal(){
   const bg = document.getElementById('pinModalBg');
@@ -293,9 +298,14 @@ async function moveToNewAddressIfOld(started){
   toast('Приложение переехало на sklad24.github.io. Нужна сеть, чтобы сначала отправить изменения (' + left + ').');
 }
 
+/* iPhone при повторном открытии восстанавливает прежнюю прокрутку, и
+   «Панель» стартовала спрятанной под шапкой. Приложение всегда
+   открывается с самого верха. */
+try{ history.scrollRestoration = 'manual'; }catch(e){}
 function hideSplash(){
   const el = document.getElementById('splashScreen');
   if(el) el.classList.add('hide');
+  try{ window.scrollTo(0, 0); }catch(e){}
 }
 
 function syncInvActionUI(){
@@ -326,7 +336,7 @@ function showSection(name, btn){
   if(name==='returns') renderReturns();
   if(name==='history') renderHistory();
   if(name==='stats') { renderStats(); renderReports(); }
-  if(name==='settings'){ renderStorageStatus(); renderSyncStatusBox(); renderSoundRows(); renderSnapshots(); }
+  if(name==='settings'){ renderStorageStatus(); renderSyncStatusBox(); renderSoundRows(); renderSnapshots(); renderAccountsCard(); }
   if(name==='finance') { renderFinance(currentFinancePeriod, null); renderFinSubTab(); }
   if(name==='balance') { renderBalance(currentBalancePeriod, null); }
 }
