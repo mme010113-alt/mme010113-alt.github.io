@@ -819,3 +819,53 @@ nav.bottom button.active{background:none;color:var(--accent);}
 .stock-tabs button.active{background:var(--text);color:#fff;border:none;}
 .stock-tabs button.active .tab-count{color:rgba(255,255,255,.75);}
 @media (min-width:1024px){ .quick-tiles{grid-template-columns:repeat(6,1fr);} }
+
+/* ---- единые размеры: поля, кнопки и значки (v93) ----
+   Одна высота у всех полей ввода (iOS рисует поле даты выше — выравниваем),
+   одна толщина линий у значков, одна шкала размеров значков. */
+input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],select{
+  height:48px;min-height:48px;line-height:22px;}
+input[type=date]{-webkit-appearance:none;appearance:none;display:flex;align-items:center;text-align:left;}
+input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0;}
+select{-webkit-appearance:none;appearance:none;padding-right:38px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23565D75' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;}
+
+/* значки: одна толщина линий, одна шкала (14 / 18 / 20 / 24) */
+.icon,.icon-lg{stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.btn .icon,.icon-btn .icon,.seg button .icon,.tabs button .icon,.period-seg button .icon,.auth-back .icon,.ws-switch .icon{width:18px;height:18px;}
+.icon-btn-lg .icon{width:20px;height:20px;}
+nav.bottom button .icon,.quick-tile .qt-ic .icon{width:24px;height:24px;}
+.btn{font-weight:600;}
+
+/* кнопки-значки рядом с полями — той же высоты и формы, что и поле */
+.filter-row{gap:8px;}
+.filter-row > select{flex:1 1 0;font-size:15px;padding-left:14px;}
+.filter-row > input{flex:1.2 1 0;}
+.card .icon-btn-lg,.filter-row > .icon-btn-lg{width:48px;height:48px;border-radius:var(--r-ctl);background:var(--fill);}
+
+/* пустой список — значок в мягком круге, а не серая «клякса» */
+.empty-state{padding:36px 16px;gap:10px;}
+.empty-state .icon-lg{width:30px;height:30px;color:var(--accent);opacity:1;box-sizing:content-box;padding:17px;border-radius:50%;background:var(--accent-soft);}
+.empty-state .et1{font-size:16px;font-weight:700;color:var(--text);}
+.empty-state .et2{font-size:14px;color:var(--text-secondary);max-width:300px;}
+#sec-history .filter-row{flex-wrap:wrap;}
+#sec-history .filter-row > #historySearch{flex:1 1 100%;}
+
+/* шапка: логотип и настройки — одинаковые скруглённые квадраты, под
+   названием одна строка состояния тем же шрифтом (v93) */
+header.top{padding-top:calc(14px + env(safe-area-inset-top));padding-bottom:14px;}
+header.top .brand{gap:12px;}
+header.top .mark{width:44px;height:44px;border-radius:14px;box-shadow:none;}
+header.top .head-btn{width:44px;height:44px;border-radius:14px;background:var(--fill);border:none;color:var(--text);}
+header.top h1{font-size:18px;line-height:1.2;}
+header.top .sub{display:flex;align-items:center;gap:6px;margin-top:3px;font-family:var(--font-body);font-size:13px;font-weight:500;color:var(--text-secondary);white-space:nowrap;overflow:hidden;}
+header.top .sub #syncLine{overflow:hidden;text-overflow:ellipsis;min-width:0;}
+header.top .sub .sub-sep{color:var(--text-tertiary);}
+header.top .sub #productCountPill{flex:none;font-weight:600;color:var(--text);}
+.sync-dot{flex:none;width:8px;height:8px;border-radius:50%;background:#10B981;}
+#syncSub[data-state="busy"] .sync-dot{background:var(--accent);animation:syncPulse 1s ease-in-out infinite;}
+#syncSub[data-state="error"] .sync-dot{background:#F43F5E;}
+#syncSub[data-state="off"] .sync-dot{background:#A1A7B8;}
+@keyframes syncPulse{50%{opacity:.35;}}
+.status-pill{display:none;}
