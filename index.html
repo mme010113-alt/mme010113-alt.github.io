@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=91">
+<link rel="stylesheet" href="css/app.css?v=92">
 </head>
 <body>
 
@@ -192,6 +192,15 @@
           <button class="btn ghost sm" style="width:auto;" onclick="openForecast()">Прогноз</button>
         </div>
         <div id="reorderList"></div>
+      </div>
+          <!-- быстрые переходы — плитки-«сервисы», как у маркетплейсов -->
+      <div class="quick-tiles">
+        <button class="quick-tile qt-stock" onclick="goSection('stock')"><span class="qt-ic"><svg class="icon"><use href="#i-box"/></svg></span>Склад</button>
+        <button class="quick-tile qt-ret" onclick="goSection('returns')"><span class="qt-ic"><svg class="icon"><use href="#i-inbox"/></svg></span>Возвраты</button>
+        <button class="quick-tile qt-hist" onclick="goSection('history')"><span class="qt-ic"><svg class="icon"><use href="#i-clock"/></svg></span>История</button>
+        <button class="quick-tile qt-fin" onclick="goSection('finance')"><span class="qt-ic"><svg class="icon"><use href="#i-wallet"/></svg></span>Расходы</button>
+        <button class="quick-tile qt-in full-only" onclick="goSection('balance')"><span class="qt-ic"><svg class="icon"><use href="#i-coins"/></svg></span>Баланс</button>
+        <button class="quick-tile qt-out" onclick="openSettings()"><span class="qt-ic"><svg class="icon"><use href="#i-gear"/></svg></span>Настройки</button>
       </div>
     </section>
 
@@ -965,19 +974,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=91"></script>
-<script src="js/db.js?v=91"></script>
-<script src="js/sync-ui.js?v=91"></script>
-<script src="js/input.js?v=91"></script>
-<script src="js/returns-scan.js?v=91"></script>
-<script src="js/sounds.js?v=91"></script>
-<script src="js/stock-history.js?v=91"></script>
-<script src="js/finance.js?v=91"></script>
-<script src="js/balance.js?v=91"></script>
-<script src="js/analytics.js?v=91"></script>
-<script src="js/settings-roles.js?v=91"></script>
-<script src="js/backup-labels.js?v=91"></script>
+<script src="sync-config.js?v=92"></script>
+<script src="js/db.js?v=92"></script>
+<script src="js/sync-ui.js?v=92"></script>
+<script src="js/input.js?v=92"></script>
+<script src="js/returns-scan.js?v=92"></script>
+<script src="js/sounds.js?v=92"></script>
+<script src="js/stock-history.js?v=92"></script>
+<script src="js/finance.js?v=92"></script>
+<script src="js/balance.js?v=92"></script>
+<script src="js/analytics.js?v=92"></script>
+<script src="js/settings-roles.js?v=92"></script>
+<script src="js/backup-labels.js?v=92"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=91"></script>
+<script src="sync.js?v=92"></script>
 </body>
 </html>
