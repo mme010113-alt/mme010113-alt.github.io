@@ -359,3 +359,33 @@ function setFullWorkspace(on){
   if(!on && active && active.id === 'sec-balance') showSection('stock', document.querySelector('nav.bottom button[onclick*="\'stock\'"]'));
 }
 document.body.classList.toggle('is-full', isFullWorkspace());
+
+/* ---- «Аккаунты клиентов» (только главный аккаунт) ---- */
+let adminAccounts = [];
+async function renderAccountsCard(){
+  const box = document.getElementById('accountsList');
+  if(!box || !document.body.classList.contains('is-admin')) return;
+  box.innerHTML = '<div class="t-small">Загружаю…</div>';
+  const r = await Sync.adminListAccounts();
+  if(!r.ok){ box.innerHTML = '<div class="t-small">Не удалось загрузить: ' + escapeHtml(r.error || '') + '</div>'; return; }
+  adminAccounts = r.rows;
+  const d = v => v ? new Date(v).toLocaleDateString('ru-RU') : '—';
+  box.innerHTML = adminAccounts.map((a, i)=>{
+    const login = String(a.email || '').replace(/@sklad.app$/, '');
+    const what = Number(a.partner_of) > 0 ? 'партнёр' : (Number(a.products) + ' товаров');
+    return `<div class="row-item">
+      <div class="rmain"><div class="rname">${escapeHtml(login)}</div>
+        <div class="rmeta">${what} · с ${d(a.created_at)} · вход ${d(a.last_sign_in_at)}</div></div>
+      <div class="rside"><button class="btn ghost sm" style="width:auto;" onclick="adminResetPassword(${i})">Пароль</button></div>
+    </div>`;
+  }).join('') || '<div class="t-small">Аккаунтов нет.</div>';
+}
+async function adminResetPassword(i){
+  const a = adminAccounts[i]; if(!a) return;
+  const login = String(a.email || '').replace(/@sklad.app$/, '');
+  const pass = prompt('Новый временный пароль для «' + login + '» (не короче 6 символов):');
+  if(pass === null) return;
+  if(pass.trim().length < 6){ toast('Пароль — не короче 6 символов'); return; }
+  const r = await Sync.adminSetPassword(a.id, pass.trim());
+  toast(r.ok ? ('Пароль для «' + login + '» изменён. Передайте его человеку') : ('Не вышло: ' + r.error));
+}
