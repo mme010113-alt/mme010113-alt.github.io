@@ -308,6 +308,10 @@ function showSection(name, btn){
   if(name==='finance') { renderFinance(currentFinancePeriod, null); renderFinSubTab(); }
   if(name==='balance') { renderBalance(currentBalancePeriod, null); }
 }
+/* Переход с плитки: подсвечиваем и кнопку нижнего меню этого раздела. */
+function goSection(name){
+  showSection(name, document.querySelector('nav.bottom button[onclick*="\'' + name + '\'"]'));
+}
 function openSettings(){
   closeChromeMenu();
   showSection('settings', null);
