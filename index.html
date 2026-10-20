@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=101">
+<link rel="stylesheet" href="css/app.css?v=103">
 </head>
 <body>
 
@@ -759,7 +759,7 @@
      человек, и выглядеть оно должно как вход в приложение. -->
 <div id="pinModalBg">
   <div class="auth-card">
-    <button type="button" class="auth-back" id="authBackBtn" onclick="openPinModal('login')" hidden><svg class="icon"><use href="#i-arrow-left"/></svg>Назад ко входу</button>
+    <button type="button" class="auth-back" id="authBackBtn" onclick="authBack()" hidden><svg class="icon"><use href="#i-arrow-left"/></svg><span id="authBackText">Назад ко входу</span></button>
     <div class="auth-logo"><img src="icon-192.png" alt=""></div>
     <h2 id="pinTitle">Вход в склад</h2>
     <p id="pinHint">Один вход на телефон, планшет и компьютер — данные едут между ними сами.</p>
@@ -976,19 +976,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=101"></script>
-<script src="js/db.js?v=101"></script>
-<script src="js/sync-ui.js?v=101"></script>
-<script src="js/input.js?v=101"></script>
-<script src="js/returns-scan.js?v=101"></script>
-<script src="js/sounds.js?v=101"></script>
-<script src="js/stock-history.js?v=101"></script>
-<script src="js/finance.js?v=101"></script>
-<script src="js/balance.js?v=101"></script>
-<script src="js/analytics.js?v=101"></script>
-<script src="js/settings-roles.js?v=101"></script>
-<script src="js/backup-labels.js?v=101"></script>
+<script src="sync-config.js?v=103"></script>
+<script src="js/db.js?v=103"></script>
+<script src="js/sync-ui.js?v=103"></script>
+<script src="js/input.js?v=103"></script>
+<script src="js/returns-scan.js?v=103"></script>
+<script src="js/sounds.js?v=103"></script>
+<script src="js/stock-history.js?v=103"></script>
+<script src="js/finance.js?v=103"></script>
+<script src="js/balance.js?v=103"></script>
+<script src="js/analytics.js?v=103"></script>
+<script src="js/settings-roles.js?v=103"></script>
+<script src="js/backup-labels.js?v=103"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=101"></script>
+<script src="sync.js?v=103"></script>
 </body>
 </html>
