@@ -169,6 +169,9 @@ async function removeMemberUI(memberId){
 /* Отметка «главное устройство» — только у этого телефона (localStorage),
    на сервер не ездит: иначе после синхронизации главными стали бы все. */
 function isMasterDevice(){
+  /* У дропшиперов, зарегистрировавшихся самостоятельно, галочки нет:
+     импорт у них разрешён с любого устройства. */
+  if(typeof isFullWorkspace === 'function' && !isFullWorkspace()) return true;
   try{ return localStorage.getItem('sklad-master-device') === '1'; }catch(e){ return false; }
 }
 function setMasterDevice(on){
