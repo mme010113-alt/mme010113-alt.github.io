@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=92">
+<link rel="stylesheet" href="css/app.css?v=93">
 </head>
 <body>
 
@@ -71,11 +71,11 @@
         <div class="mark"><img id="headerLogoImg" src="icon-192.png" alt="Логотип" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;"></div>
         <div class="name">
           <h1><span id="companyTitle">Склад</span><button type="button" class="ws-switch" id="wsSwitchBtn" onclick="openWsSwitcher()" aria-label="Сменить склад" hidden><svg class="icon"><use href="#i-swap"/></svg></button></h1>
-          <div class="sub" id="syncLine">Данные на этом устройстве</div>
+          <!-- одна строка состояния: точка синхронизации, время, число товаров -->
+          <div class="sub" id="syncSub"><span class="sync-dot"></span><span id="syncLine">Данные на этом устройстве</span><span class="sub-sep">·</span><span id="productCountPill">0 товаров</span></div>
         </div>
       </div>
-      <div class="status-pill"><span class="dot"></span><span id="productCountPill">0 товаров</span></div>
-      <button class="icon-btn-lg" onclick="openSettings()" aria-label="Настройки"><svg class="icon"><use href="#i-gear"/></svg></button>
+      <button class="icon-btn-lg head-btn" onclick="openSettings()" aria-label="Настройки"><svg class="icon"><use href="#i-gear"/></svg></button>
     </header>
   </div>
 
@@ -974,19 +974,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=92"></script>
-<script src="js/db.js?v=92"></script>
-<script src="js/sync-ui.js?v=92"></script>
-<script src="js/input.js?v=92"></script>
-<script src="js/returns-scan.js?v=92"></script>
-<script src="js/sounds.js?v=92"></script>
-<script src="js/stock-history.js?v=92"></script>
-<script src="js/finance.js?v=92"></script>
-<script src="js/balance.js?v=92"></script>
-<script src="js/analytics.js?v=92"></script>
-<script src="js/settings-roles.js?v=92"></script>
-<script src="js/backup-labels.js?v=92"></script>
+<script src="sync-config.js?v=93"></script>
+<script src="js/db.js?v=93"></script>
+<script src="js/sync-ui.js?v=93"></script>
+<script src="js/input.js?v=93"></script>
+<script src="js/returns-scan.js?v=93"></script>
+<script src="js/sounds.js?v=93"></script>
+<script src="js/stock-history.js?v=93"></script>
+<script src="js/finance.js?v=93"></script>
+<script src="js/balance.js?v=93"></script>
+<script src="js/analytics.js?v=93"></script>
+<script src="js/settings-roles.js?v=93"></script>
+<script src="js/backup-labels.js?v=93"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=92"></script>
+<script src="sync.js?v=93"></script>
 </body>
 </html>
