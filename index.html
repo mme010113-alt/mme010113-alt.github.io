@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css?v=97">
+<link rel="stylesheet" href="css/app.css?v=99">
 </head>
 <body>
 
@@ -483,6 +483,15 @@
         <div class="t-caption full-only" id="masterPublishCap" style="margin:6px 0 0;color:var(--text-tertiary);display:none;">Сервер станет точной копией этого телефона (лишнее на сервере удалится), а остальные телефоны при следующей связи сотрут свои данные и скачают эти. Вызывается сама после импорта файла.</div>
       </div>
 
+      <div class="card admin-only" id="accountsCard">
+        <div class="card-head">
+          <span class="t-eyebrow">Аккаунты клиентов</span>
+          <button class="btn ghost sm" style="width:auto;" onclick="renderAccountsCard()"><svg class="icon"><use href="#i-download"/></svg>Обновить</button>
+        </div>
+        <div class="t-caption" style="margin:-4px 0 var(--sp-2);color:var(--text-tertiary);">Все, кто зарегистрировался. Забыл пароль — задайте временный («Пароль»), человек войдёт с ним и сменит его в своих «Настройках». Его старые входы при этом завершатся.</div>
+        <div id="accountsList"><div class="t-small">Откройте «Обновить», чтобы загрузить список.</div></div>
+      </div>
+
       <div class="card admin-only" id="snapshotsCard">
         <div class="card-head">
           <span class="t-eyebrow">Копии на сервере</span>
@@ -778,6 +787,8 @@
 
     <button class="btn primary auth-submit" id="pinSubmit" onclick="submitPin()"><svg class="icon"><use href="#i-check"/></svg><span id="pinSubmitText">Войти</span></button>
     <button type="button" class="auth-skip auth-strong" id="regToggleBtn" onclick="openPinModal('register')">Создать новый склад</button>
+    <button type="button" class="auth-skip" id="forgotBtn" onclick="showForgotHint()">Забыли пароль?</button>
+    <div class="auth-forgot" id="forgotHint" hidden>Пароль восстанавливает администратор сервиса. Напишите тому, кто дал вам ссылку на приложение, — он задаст временный пароль. Войдите с ним и смените пароль в «Настройках».</div>
     <button type="button" class="auth-skip" id="empToggleBtn" onclick="toggleEmployeeLogin()">Войти как партнёр</button>
     <button type="button" class="auth-skip" id="skipPinBtn" onclick="skipPin()">Работать без синхронизации</button>
     <!-- До входа в настройки не попасть, а клавиатура нужна уже здесь -->
@@ -965,19 +976,19 @@
 <script src="vendor/zxing.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="sync-config.js?v=97"></script>
-<script src="js/db.js?v=97"></script>
-<script src="js/sync-ui.js?v=97"></script>
-<script src="js/input.js?v=97"></script>
-<script src="js/returns-scan.js?v=97"></script>
-<script src="js/sounds.js?v=97"></script>
-<script src="js/stock-history.js?v=97"></script>
-<script src="js/finance.js?v=97"></script>
-<script src="js/balance.js?v=97"></script>
-<script src="js/analytics.js?v=97"></script>
-<script src="js/settings-roles.js?v=97"></script>
-<script src="js/backup-labels.js?v=97"></script>
+<script src="sync-config.js?v=99"></script>
+<script src="js/db.js?v=99"></script>
+<script src="js/sync-ui.js?v=99"></script>
+<script src="js/input.js?v=99"></script>
+<script src="js/returns-scan.js?v=99"></script>
+<script src="js/sounds.js?v=99"></script>
+<script src="js/stock-history.js?v=99"></script>
+<script src="js/finance.js?v=99"></script>
+<script src="js/balance.js?v=99"></script>
+<script src="js/analytics.js?v=99"></script>
+<script src="js/settings-roles.js?v=99"></script>
+<script src="js/backup-labels.js?v=99"></script>
 <!-- после основного кода: синхронизация опирается на его функции -->
-<script src="sync.js?v=97"></script>
+<script src="sync.js?v=99"></script>
 </body>
 </html>
