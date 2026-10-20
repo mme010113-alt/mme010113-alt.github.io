@@ -273,8 +273,24 @@ async function initSync(){
   window.refreshAfterSync = refreshAfterSync;
 
   const started = await Sync.start();
+  await moveToNewAddressIfOld(started);
   if(!started) openPinModal('login');
   await applyRoleUI();
+}
+
+/* 2026-10-20 приложение переехало на https://sklad24.github.io. Данные
+   телефона привязаны к адресу сайта, поэтому старое приложение сначала
+   досылает всё неотправленное на сервер и только потом уходит на новый
+   адрес (там после входа всё скачается). Не вышло — остаёмся и просим сеть. */
+const NEW_SITE = 'https://sklad24.github.io/';
+async function moveToNewAddressIfOld(started){
+  // без сети новый адрес не откроется (он ещё не сохранён на телефоне) — переедем позже
+  if(location.hostname !== 'mme010113-alt.github.io' || !navigator.onLine) return;
+  try{ if(started && navigator.onLine) await Sync.syncNow('переезд'); }catch(e){}
+  let left = 0, hasLocal = false;
+  try{ left = await countUnsent(); hasLocal = (await getAllLive('products')).length > 0; }catch(e){}
+  if(left === 0 && (started || !hasLocal)){ location.replace(NEW_SITE); return; }
+  toast('Приложение переехало на sklad24.github.io. Нужна сеть, чтобы сначала отправить изменения (' + left + ').');
 }
 
 function hideSplash(){
