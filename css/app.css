@@ -715,3 +715,4 @@ header.top h1 #companyTitle{min-width:0;overflow:hidden;text-overflow:ellipsis;w
 .ws-join .field-row{display:flex;gap:8px;}
 .ws-join input{flex:1;min-width:0;}
 body:not(.is-admin) .admin-only{display:none !important;}
+body:not(.is-full) .full-only{display:none !important;}
