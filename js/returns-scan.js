@@ -425,7 +425,8 @@ async function applyStockOperation(p, barcode, qty, opts){
   const histUid = await logHistory(currentMode, barcode, p, qty);
   /* Каждый «Расход» = продажа, с неё партнёрам идёт процент. Начисление
      создаётся тут же и появляется у партнёров в «Балансе». */
-  if(currentMode === 'Расход') await createSaleCommission(p, qty, histUid, !!opts.singleOrder);
+  // начисления партнёрам — только в складах с «Балансом» (см. fullWorkspaces)
+  if(currentMode === 'Расход' && isFullWorkspace()) await createSaleCommission(p, qty, histUid, !!opts.singleOrder);
   p.totalStock = await recalcStock(p.sku);
   showLastProduct(p);
   showStatus(p.name+' — '+currentMode.toLowerCase()+' '+sign+displayQty+' шт.', currentMode==='Расход' ? 'danger' : 'success');
