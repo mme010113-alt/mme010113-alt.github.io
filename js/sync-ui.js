@@ -95,7 +95,9 @@ function openPinModal(mode){
   if(note) note.style.display = mode === 'login' ? 'block' : 'none';
   // на основном входе — все пути; в остальных шагах только «Назад ко входу»
   document.querySelectorAll('.auth-skip').forEach(b=>{ b.style.display = mode === 'login' ? 'block' : 'none'; });
-  document.getElementById('authBackBtn').hidden = (mode === 'login' || isChange);
+  // «Назад»: из смены пароля — обратно в приложение, из остальных шагов — ко входу
+  document.getElementById('authBackBtn').hidden = (mode === 'login');
+  document.getElementById('authBackText').textContent = isChange ? 'Назад' : 'Назад ко входу';
 
   bg.dataset.emp = mode === 'partner' ? '1' : '0';
   const ef = document.getElementById('empFields'); if(ef) ef.hidden = mode !== 'partner';
@@ -107,6 +109,11 @@ function openPinModal(mode){
     const focusId = (isChange || document.getElementById('loginInput').value) ? 'pinInput' : 'loginInput';
     document.getElementById(focusId).focus();
   }, 60);
+}
+function authBack(){
+  const bg = document.getElementById('pinModalBg');
+  if(bg && bg.dataset.mode === 'change') closePinModal();
+  else openPinModal('login');
 }
 function showForgotHint(){
   const el = document.getElementById('forgotHint');
